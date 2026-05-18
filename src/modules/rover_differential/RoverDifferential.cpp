@@ -161,8 +161,10 @@ Vector2f RoverDifferential::computeInverseKinematics(float throttle_body_x, cons
 	}
 
 	// Calculate the left and right wheel speeds
-	return Vector2f(throttle_body_x - speed_diff_normalized,
-			throttle_body_x + speed_diff_normalized);
+	// control[0]=left motor, control[1]=right motor (Sabertooth CH1=left, CH2=right)
+	// Positive speed_diff = right turn: left faster, right slower
+	return Vector2f(throttle_body_x + speed_diff_normalized,
+			throttle_body_x - speed_diff_normalized);
 }
 
 int RoverDifferential::task_spawn(int argc, char *argv[])

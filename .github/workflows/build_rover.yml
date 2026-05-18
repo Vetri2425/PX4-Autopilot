@@ -42,6 +42,8 @@ jobs:
              src/modules/rover_differential/module.yaml
           cp fork_patches/src/modules/land_detector/RoverLandDetector.cpp \
              src/modules/land_detector/RoverLandDetector.cpp
+          cp fork_patches/src/modules/navigator/mission_block.cpp \
+             src/modules/navigator/mission_block.cpp
 
       - name: Install dependencies
         run: |

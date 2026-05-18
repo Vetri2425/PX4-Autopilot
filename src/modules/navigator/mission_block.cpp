@@ -160,7 +160,10 @@ MissionBlock::is_mission_item_reached_or_completed()
 	}
 
 	// Update the 'waypoint position reached' status
-	if (!_navigator->get_land_detected()->landed && !_waypoint_position_reached) {
+	// Rovers are always "landed" by design — skip the landed check for them
+	const bool is_rover = _navigator->get_vstatus()->vehicle_type == vehicle_status_s::VEHICLE_TYPE_ROVER;
+
+	if ((is_rover || !_navigator->get_land_detected()->landed) && !_waypoint_position_reached) {
 
 		float dist = -1.0f;
 		float dist_xy = -1.0f;

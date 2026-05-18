@@ -44,11 +44,6 @@
 namespace land_detector
 {
 
-RoverLandDetector::RoverLandDetector()
-{
-	_landed_hysteresis.set_hysteresis_time_from(true, 500_ms);
-}
-
 bool RoverLandDetector::_get_ground_contact_state()
 {
 	return true;
@@ -56,30 +51,41 @@ bool RoverLandDetector::_get_ground_contact_state()
 
 bool RoverLandDetector::_get_landed_state()
 {
-	// If Landing has been requested then say we have landed.
+	_update_topics();
+	const float distance_to_home = get_distance_to_next_waypoint(_curr_pos(0), _curr_pos(1),
+				       _home_position(0), _home_position(1));
+
 	if (_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_LAND
 	    || _vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_DESCEND) {
 		return true;
 
-	}
+	} else if (_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_RTL
+		   && distance_to_home < _param_nav_acc_rad.get() && _param_rtl_land_delay.get() > -FLT_EPSILON) {
+		return true;
 
-	// If we are in RTL and have reached the last valid waypoint then we are landed.
-	if (_vehicle_status.nav_state == vehicle_status_s::NAVIGATION_STATE_AUTO_RTL) {
+	} else {
+		return true; // Rovers are always on the ground — never flying regardless of arm state
+	}
+}
+
+void RoverLandDetector::_update_topics()
+{
+	if (_vehicle_global_position_sub.updated()) {
 		vehicle_global_position_s vehicle_global_position{};
 		_vehicle_global_position_sub.copy(&vehicle_global_position);
-		position_setpoint_triplet_s position_setpoint_triplet{};
-		_position_setpoint_triplet_sub.copy(&position_setpoint_triplet);
-
-		const float distance_to_curr_wp = get_distance_to_next_waypoint(vehicle_global_position.lat,
-						  vehicle_global_position.lon,
-						  position_setpoint_triplet.current.lat, position_setpoint_triplet.current.lon);
-		return distance_to_curr_wp < _param_nav_acc_rad.get() && !position_setpoint_triplet.next.valid;
-
+		_curr_pos = matrix::Vector2d(vehicle_global_position.lat, vehicle_global_position.lon);
 	}
 
-	// Rovers are always on the ground — they don't fly.
-	// Armed/disarmed is irrelevant for ground contact.
-	return true;
+	if (_home_position_sub.updated()) {
+		home_position_s home_position{};
+		_home_position_sub.copy(&home_position);
+		_home_position = matrix::Vector2d(home_position.lat, home_position.lon);
+	}
+}
+
+void RoverLandDetector::_set_hysteresis_factor(const int factor)
+{
+	_landed_hysteresis.set_hysteresis_time_from(true, 0_ms);
 }
 
 } // namespace land_detector

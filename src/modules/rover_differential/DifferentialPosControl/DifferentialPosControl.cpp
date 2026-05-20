@@ -53,6 +53,27 @@ void DifferentialPosControl::updatePosControl()
 {
 	updateSubscriptions();
 
+	// P1: Detect OFFBOARD falling edge and invalidate the cached position setpoint
+	const bool offboard_active = _vehicle_control_mode.flag_control_position_enabled
+				     && _vehicle_control_mode.flag_control_offboard_enabled;
+
+	if (_was_offboard && !offboard_active) {
+		// OFFBOARD just ended — erase cached target so pure pursuit is inert
+		_target_waypoint_ned = Vector2f{NAN, NAN};
+		_start_ned = Vector2f{NAN, NAN};
+		_stopped = false;
+		_current_state = DrivingState::DRIVING;
+	}
+
+	_was_offboard = offboard_active;
+
+	// Invalidate on disarm
+	if (!_vehicle_control_mode.flag_armed) {
+		_target_waypoint_ned = Vector2f{NAN, NAN};
+		_start_ned = Vector2f{NAN, NAN};
+		_stopped = false;
+	}
+
 	hrt_abstime timestamp = hrt_absolute_time();
 
 
@@ -166,6 +187,10 @@ void DifferentialPosControl::updateSubscriptions()
 				  _param_ro_speed_limit.get();
 		_target_waypoint_ned = Vector2f(rover_position_setpoint.position_ned[0], rover_position_setpoint.position_ned[1]);
 		_stopped = false;
+	}
+
+	if (_vehicle_control_mode_sub.updated()) {
+		_vehicle_control_mode_sub.copy(&_vehicle_control_mode);
 	}
 }
 

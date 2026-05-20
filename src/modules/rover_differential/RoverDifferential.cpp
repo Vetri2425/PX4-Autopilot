@@ -87,8 +87,20 @@ void RoverDifferential::Run()
 	}
 
 	if (_vehicle_control_mode.flag_armed) {
+		_was_armed = true;
 		generateActuatorSetpoint();
 
+	} else if (_was_armed) {
+		// Just disarmed — publish a zero actuator command to cut motors cleanly
+		actuator_motors_s actuator_motors{};
+		actuator_motors.reversible_flags = _param_r_rev.get();
+		actuator_motors.timestamp = _timestamp;
+		actuator_motors.control[0] = 0.f;
+		actuator_motors.control[1] = 0.f;
+		_actuator_motors_pub.publish(actuator_motors);
+		// Reset slew-rate so next arm starts from zero
+		_throttle_body_x_setpoint.setForcedValue(0.f);
+		_was_armed = false;
 	}
 
 }

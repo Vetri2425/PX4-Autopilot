@@ -38,19 +38,24 @@
 #include <px4_platform_common/events.h>
 
 // Libraries
+#include <lib/rover_control/RoverControl.hpp>
+#include <lib/pid/PID.hpp>
 #include <matrix/matrix/math.hpp>
-#include <lib/pure_pursuit/PurePursuit.hpp>
+#include <lib/slew_rate/SlewRate.hpp>
 #include <math.h>
 
 // uORB includes
 #include <uORB/Publication.hpp>
 #include <uORB/Subscription.hpp>
-#include <uORB/topics/rover_speed_setpoint.h>
+#include <uORB/topics/rover_steering_setpoint.h>
+#include <uORB/topics/rover_throttle_setpoint.h>
+#include <uORB/topics/rover_velocity_status.h>
+#include <uORB/topics/differential_velocity_setpoint.h>
 #include <uORB/topics/rover_attitude_setpoint.h>
-#include <uORB/topics/pure_pursuit_status.h>
-#include <uORB/topics/rover_position_setpoint.h>
-#include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_control_mode.h>
+#include <uORB/topics/trajectory_setpoint.h>
+#include <uORB/topics/vehicle_attitude.h>
+#include <uORB/topics/offboard_control_mode.h>
 #include <uORB/topics/vehicle_local_position.h>
 
 using namespace matrix;
@@ -64,33 +69,22 @@ enum class DrivingState {
 };
 
 /**
- * @brief Class for differential position control.
+ * @brief Class for differential velocity control.
  */
-class DifferentialPosControl : public ModuleParams
+class DifferentialVelControl : public ModuleParams
 {
 public:
 	/**
-	 * @brief Constructor for DifferentialPosControl.
+	 * @brief Constructor for DifferentialVelControl.
 	 * @param parent The parent ModuleParams object.
 	 */
-	DifferentialPosControl(ModuleParams *parent);
-	~DifferentialPosControl() = default;
+	DifferentialVelControl(ModuleParams *parent);
+	~DifferentialVelControl() = default;
 
 	/**
-	 * @brief Generate and publish roverSpeedSetpoint and roverAttitudeSetpoint from roverPositionSetpoint.
+	 * @brief Update velocity controller.
 	 */
-	void updatePosControl();
-
-	/**
-	 * @brief Check if the necessary parameters are set.
-	 * @return True if all checks pass.
-	 */
-	bool runSanityChecks();
-
-	/**
-	 * @brief Reset position controller.
-	 */
-	void reset() {_start_ned = Vector2f{NAN, NAN}; _target_waypoint_ned = Vector2f{NAN, NAN}; _arrival_speed = 0.f; _cruising_speed = _param_ro_speed_limit.get(); _stopped = false;};
+	void updateVelControl();
 
 protected:
 	/**
@@ -100,49 +94,72 @@ protected:
 
 private:
 	/**
-	 * @brief Update uORB subscriptions used in position controller.
+	 * @brief Update uORB subscriptions used in velocity controller.
 	 */
 	void updateSubscriptions();
 
+	/**
+	 * @brief Generate and publish roverVelocitySetpoint from velocity of trajectorySetpoint.
+	 */
+	void generateVelocitySetpoint();
+
+	/**
+	 * @brief Generate and publish roverAttitudeSetpoint and roverThrottleSetpoint
+	 *        from roverVelocitySetpoint.
+	 */
+	void generateAttitudeAndThrottleSetpoint();
+
+	/**
+	 * @brief Check if the necessary parameters are set.
+	 * @return True if all checks pass.
+	 */
+	bool runSanityChecks();
+
 	// uORB subscriptions
+	uORB::Subscription _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
+	uORB::Subscription _trajectory_setpoint_sub{ORB_ID(trajectory_setpoint)};
+	uORB::Subscription _offboard_control_mode_sub{ORB_ID(offboard_control_mode)};
 	uORB::Subscription _vehicle_attitude_sub{ORB_ID(vehicle_attitude)};
 	uORB::Subscription _vehicle_local_position_sub{ORB_ID(vehicle_local_position)};
-	uORB::Subscription _rover_position_setpoint_sub{ORB_ID(rover_position_setpoint)};
-	uORB::Subscription _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
+	uORB::Subscription _differential_velocity_setpoint_sub{ORB_ID(differential_velocity_setpoint)};
+	uORB::Subscription _rover_steering_setpoint_sub{ORB_ID(rover_steering_setpoint)};
 	vehicle_control_mode_s _vehicle_control_mode{};
+	offboard_control_mode_s _offboard_control_mode{};
+	rover_steering_setpoint_s _rover_steering_setpoint{};
 
 	// uORB publications
-	uORB::Publication<rover_speed_setpoint_s> _rover_speed_setpoint_pub{ORB_ID(rover_speed_setpoint)};
-	uORB::Publication<pure_pursuit_status_s>     _pure_pursuit_status_pub{ORB_ID(pure_pursuit_status)};
+	uORB::Publication<rover_throttle_setpoint_s> _rover_throttle_setpoint_pub{ORB_ID(rover_throttle_setpoint)};
 	uORB::Publication<rover_attitude_setpoint_s> _rover_attitude_setpoint_pub{ORB_ID(rover_attitude_setpoint)};
+	uORB::Publication<rover_velocity_status_s> _rover_velocity_status_pub{ORB_ID(rover_velocity_status)};
+	uORB::Publication<differential_velocity_setpoint_s> _differential_velocity_setpoint_pub{ORB_ID(differential_velocity_setpoint)};
+	differential_velocity_setpoint_s _differential_velocity_setpoint{};
 
 	// Variables
+	hrt_abstime _timestamp{0};
 	Quatf _vehicle_attitude_quaternion{};
-	Vector2f _curr_pos_ned{};
-	Vector2f _start_ned{};
-	Vector2f _target_waypoint_ned{};
-	float _arrival_speed{0.f};
+	float _vehicle_speed_body_x{0.f};
+	float _vehicle_speed_body_y{0.f};
 	float _vehicle_yaw{0.f};
-	float _vehicle_speed{0.f};
-	float _cruising_speed{NAN};
-	bool _stopped{false};
-	bool _was_offboard{false};
-	uint8_t _reset_counter{0}; /**< counter for estimator resets in xy-direction */
-	uint8_t _updated_reset_counter{0}; /**< counter for estimator resets in xy-direction */
+	float _dt{0.f};
+	bool _prev_param_check_passed{false};
 	DrivingState _current_state{DrivingState::DRIVING};
+
+
+	// Controllers
+	PID _pid_speed;
+	SlewRate<float> _speed_setpoint;
 
 	DEFINE_PARAMETERS(
 		(ParamFloat<px4::params::RD_TRANS_TRN_DRV>) _param_rd_trans_trn_drv,
 		(ParamFloat<px4::params::RD_TRANS_DRV_TRN>) _param_rd_trans_drv_trn,
 		(ParamFloat<px4::params::RO_MAX_THR_SPEED>) _param_ro_max_thr_speed,
+		(ParamFloat<px4::params::RO_SPEED_P>) 	    _param_ro_speed_p,
+		(ParamFloat<px4::params::RO_SPEED_I>)       _param_ro_speed_i,
+		(ParamFloat<px4::params::RO_ACCEL_LIM>)     _param_ro_accel_limit,
 		(ParamFloat<px4::params::RO_DECEL_LIM>)     _param_ro_decel_limit,
 		(ParamFloat<px4::params::RO_JERK_LIM>)      _param_ro_jerk_limit,
 		(ParamFloat<px4::params::RO_SPEED_LIM>)     _param_ro_speed_limit,
-		(ParamFloat<px4::params::PP_LOOKAHD_GAIN>)  _param_pp_lookahd_gain,
-		(ParamFloat<px4::params::PP_LOOKAHD_MAX>)   _param_pp_lookahd_max,
-		(ParamFloat<px4::params::PP_LOOKAHD_MIN>)   _param_pp_lookahd_min,
-		(ParamFloat<px4::params::NAV_ACC_RAD>)      _param_nav_acc_rad,
-		(ParamFloat<px4::params::RO_SPEED_RED>)     _param_ro_speed_red,
 		(ParamFloat<px4::params::RO_SPEED_TH>)      _param_ro_speed_th
+
 	)
 };

@@ -40,6 +40,16 @@ jobs:
              src/modules/rover_differential/RoverDifferential.hpp
           cp fork_patches/src/modules/rover_differential/module.yaml \
              src/modules/rover_differential/module.yaml
+          cp fork_patches/src/modules/rover_differential/DifferentialVelControl/DifferentialVelControl.cpp \
+             src/modules/rover_differential/DifferentialVelControl/DifferentialVelControl.cpp
+          cp fork_patches/src/modules/rover_differential/DifferentialVelControl/DifferentialVelControl.hpp \
+             src/modules/rover_differential/DifferentialVelControl/DifferentialVelControl.hpp
+          cp fork_patches/src/modules/rover_differential/DifferentialVelControl/CMakeLists.txt \
+             src/modules/rover_differential/DifferentialVelControl/CMakeLists.txt
+          cp fork_patches/src/modules/rover_differential/DifferentialPosControl/DifferentialPosControl.cpp \
+             src/modules/rover_differential/DifferentialPosControl/DifferentialPosControl.cpp
+          cp fork_patches/src/modules/rover_differential/DifferentialPosControl/DifferentialPosControl.hpp \
+             src/modules/rover_differential/DifferentialPosControl/DifferentialPosControl.hpp
           cp fork_patches/src/modules/land_detector/RoverLandDetector.cpp \
              src/modules/land_detector/RoverLandDetector.cpp
           cp fork_patches/src/modules/navigator/mission_block.cpp \

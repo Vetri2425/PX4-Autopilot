@@ -46,10 +46,12 @@ jobs:
              src/modules/rover_differential/DifferentialVelControl/DifferentialVelControl.hpp
           cp fork_patches/src/modules/rover_differential/DifferentialVelControl/CMakeLists.txt \
              src/modules/rover_differential/DifferentialVelControl/CMakeLists.txt
-          cp fork_patches/src/modules/rover_differential/DifferentialPosControl/DifferentialPosControl.cpp \
-             src/modules/rover_differential/DifferentialPosControl/DifferentialPosControl.cpp
-          cp fork_patches/src/modules/rover_differential/DifferentialPosControl/DifferentialPosControl.hpp \
-             src/modules/rover_differential/DifferentialPosControl/DifferentialPosControl.hpp
+          # NOTE: DifferentialPosControl is intentionally NOT overlaid.
+          # The fork's PosControl is from a post-v1.16.2 refactor that requires
+          # RoverSpeedSetpoint.msg / RoverSpeedStatus.msg, which do not exist in
+          # v1.16.2 -> compile failure. Stock v1.16.2 PosControl is used instead:
+          # it publishes differential_velocity_setpoint (consumed by VelControl)
+          # and gates all output behind flag_armed (covers P1's disarm guard).
           cp fork_patches/src/modules/land_detector/RoverLandDetector.cpp \
              src/modules/land_detector/RoverLandDetector.cpp
           cp fork_patches/src/modules/navigator/mission_block.cpp \

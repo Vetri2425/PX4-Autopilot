@@ -54,11 +54,9 @@
 #include <uORB/Publication.hpp>
 #include <uORB/topics/wheel_encoders.h>
 
-class Roboclaw : public ModuleBase, public OutputModuleInterface
+class Roboclaw : public ModuleBase<Roboclaw>, public OutputModuleInterface
 {
 public:
-	static Descriptor desc;
-
 	/**
 	 * @param device_name Name of the serial port e.g. "/dev/ttyS2"
 	 * @param bad_rate_parameter Name of the parameter that holds the baud rate of this serial port
@@ -79,7 +77,8 @@ public:
 	void Run() override;
 
 	/** @see OutputModuleInterface */
-	bool updateOutputs(float outputs[MAX_ACTUATORS], unsigned num_outputs, unsigned num_control_groups_updated) override;
+	bool updateOutputs(bool stop_motors, uint16_t outputs[MAX_ACTUATORS],
+			   unsigned num_outputs, unsigned num_control_groups_updated) override;
 
 	void setMotorSpeed(Motor motor, float value); ///< rev/sec
 	void setMotorDutyCycle(Motor motor, float value);
@@ -96,6 +95,8 @@ private:
 		DriveBackwardsMotor2 = 5,
 		DutyCycleMotor1 = 32,
 		DutyCycleMotor2 = 33,
+		DriveSpeedMotor1 = 35,   // Drive M1 With Signed Speed (4-byte QPPS, signed, big-endian)
+		DriveSpeedMotor2 = 36,   // Drive M2 With Signed Speed (4-byte QPPS, signed, big-endian)
 
 		ReadSpeedMotor1 = 18,
 		ReadSpeedMotor2 = 19,
@@ -115,6 +116,7 @@ private:
 
 	void sendUnsigned7Bit(Command command, float data);
 	void sendSigned16Bit(Command command, float data);
+	void sendSigned32Bit(Command command, int32_t value);
 
 	// Roboclaw protocol
 	int sendTransaction(Command cmd, uint8_t *write_buffer, size_t bytes_to_write);
@@ -137,6 +139,7 @@ private:
 
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::RBCLW_ADDRESS>) _param_rbclw_address,
-		(ParamInt<px4::params::RBCLW_COUNTS_REV>) _param_rbclw_counts_rev
+		(ParamInt<px4::params::RBCLW_COUNTS_REV>) _param_rbclw_counts_rev,
+		(ParamInt<px4::params::RBCLW_QPPS_MAX>) _param_rbclw_qpps_max
 	)
 };

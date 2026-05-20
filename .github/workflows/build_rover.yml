@@ -56,6 +56,13 @@ jobs:
              src/modules/land_detector/RoverLandDetector.cpp
           cp fork_patches/src/modules/navigator/mission_block.cpp \
              src/modules/navigator/mission_block.cpp
+          # RoboClaw "Option A" velocity (QPPS) overlay - closed-loop on encoders.
+          cp fork_patches/src/drivers/roboclaw/Roboclaw.cpp \
+             src/drivers/roboclaw/Roboclaw.cpp
+          cp fork_patches/src/drivers/roboclaw/Roboclaw.hpp \
+             src/drivers/roboclaw/Roboclaw.hpp
+          cp fork_patches/src/drivers/roboclaw/module.yaml \
+             src/drivers/roboclaw/module.yaml
 
       - name: Install dependencies
         run: |

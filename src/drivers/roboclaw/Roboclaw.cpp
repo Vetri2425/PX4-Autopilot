@@ -44,8 +44,6 @@
 #include "Roboclaw.hpp"
 #include <termios.h>
 
-ModuleBase::Descriptor Roboclaw::desc{task_spawn, custom_command, print_usage};
-
 Roboclaw::Roboclaw(const char *device_name, const char *bad_rate_parameter) :
 	OutputModuleInterface(MODULE_NAME, px4::wq_configurations::hp_default)
 {
@@ -156,10 +154,21 @@ int Roboclaw::initializeUART()
 	}
 }
 
-bool Roboclaw::updateOutputs(float outputs[MAX_ACTUATORS], unsigned num_outputs, unsigned num_control_groups_updated)
+bool Roboclaw::updateOutputs(bool stop_motors, uint16_t outputs[MAX_ACTUATORS],
+			     unsigned num_outputs, unsigned num_control_groups_updated)
 {
-	setMotorSpeed(Motor::Right, (outputs[0] - 127.0f) / 127.f);
-	setMotorSpeed(Motor::Left, (outputs[1] - 127.0f) / 127.f);
+	float right_motor_output = ((float)outputs[0] - 128.0f) / 127.f;
+	float left_motor_output = ((float)outputs[1] - 128.0f) / 127.f;
+
+	if (stop_motors) {
+		setMotorSpeed(Motor::Right, 0.f);
+		setMotorSpeed(Motor::Left, 0.f);
+
+	} else {
+		setMotorSpeed(Motor::Right, right_motor_output);
+		setMotorSpeed(Motor::Left, left_motor_output);
+	}
+
 	return true;
 }
 
@@ -167,7 +176,7 @@ void Roboclaw::Run()
 {
 	if (should_exit()) {
 		ScheduleClear();
-		exit_and_cleanup(desc);
+		exit_and_cleanup();
 		_mixing_output.unregister();
 		return;
 	}
@@ -237,30 +246,19 @@ int Roboclaw::readEncoder()
 
 void Roboclaw::setMotorSpeed(Motor motor, float value)
 {
-	Command command;
+	// "Option A": closed-loop velocity control on the RoboClaw's encoders.
+	// Map normalized command [-1, 1] to QPPS using RBCLW_QPPS_MAX, then send
+	// Drive-With-Signed-Speed opcodes (35/36). The RoboClaw closes the velocity
+	// loop using its onboard PID (tuned in BasicMicro Motion Studio).
+	const int32_t qpps = (int32_t)(math::constrain(value, -1.f, 1.f)
+				       * (float)_param_rbclw_qpps_max.get());
 
-	// send command
 	if (motor == Motor::Right) {
-		if (value > 0.f) {
-			command = Command::DriveForwardMotor1;
-
-		} else {
-			command = Command::DriveBackwardsMotor1;
-		}
+		sendSigned32Bit(Command::DriveSpeedMotor1, qpps);
 
 	} else if (motor == Motor::Left) {
-		if (value > 0.f) {
-			command = Command::DriveForwardMotor2;
-
-		} else {
-			command = Command::DriveBackwardsMotor2;
-		}
-
-	} else {
-		return;
+		sendSigned32Bit(Command::DriveSpeedMotor2, qpps);
 	}
-
-	sendUnsigned7Bit(command, value);
 }
 
 void Roboclaw::setMotorDutyCycle(Motor motor, float value)
@@ -286,9 +284,15 @@ void Roboclaw::resetEncoders()
 	sendTransaction(Command::ResetEncoders, nullptr, 0);
 }
 
-void Roboclaw::sendUnsigned7Bit(Command command, const float data)
+void Roboclaw::sendUnsigned7Bit(Command command, float data)
 {
-	uint8_t byte = static_cast<uint8_t>(lroundf(fabs(data) * INT8_MAX));
+	data = fabs(data);
+
+	if (data >= 1.0f) {
+		data = 0.99f;
+	}
+
+	auto byte = (uint8_t)(data * INT8_MAX);
 	sendTransaction(command, &byte, 1);
 }
 
@@ -299,6 +303,17 @@ void Roboclaw::sendSigned16Bit(Command command, float data)
 	buff[0] = (value >> 8) & 0xFF; // High byte
 	buff[1] = value & 0xFF; // Low byte
 	sendTransaction(command, (uint8_t *) &buff, 2);
+}
+
+void Roboclaw::sendSigned32Bit(Command command, int32_t value)
+{
+	// Big-endian 4-byte signed payload. CRC + ACK are handled by sendTransaction.
+	uint8_t buff[4];
+	buff[0] = (value >> 24) & 0xFF;
+	buff[1] = (value >> 16) & 0xFF;
+	buff[2] = (value >> 8) & 0xFF;
+	buff[3] =  value        & 0xFF;
+	sendTransaction(command, buff, 4);
 }
 
 int Roboclaw::sendTransaction(Command cmd, uint8_t *write_buffer, size_t bytes_to_write)
@@ -334,7 +349,7 @@ int Roboclaw::writeCommandWithPayload(Command command, uint8_t *wbuff, size_t by
 
 	// Not all bytes sent
 	if (bytes_written < packet_size) {
-		PX4_ERR("Only wrote %zu out of %zu bytes", bytes_written, bytes_to_write);
+		PX4_ERR("Only wrote %d out of %d bytes", bytes_written, bytes_to_write);
 		return ERROR;
 	}
 
@@ -381,7 +396,7 @@ int Roboclaw::writeCommand(Command command)
 	size_t bytes_written = write(_uart_fd, buffer, 2);
 
 	if (bytes_written < 2) {
-		PX4_ERR("Only wrote %zu out of %d bytes", bytes_written, 2);
+		PX4_ERR("Only wrote %d out of %d bytes", bytes_written, 2);
 		return ERROR;
 	}
 
@@ -467,8 +482,8 @@ int Roboclaw::task_spawn(int argc, char *argv[])
 	Roboclaw *instance = new Roboclaw(device_name, baud_rate_parameter_value);
 
 	if (instance) {
-		desc.object.store(instance);
-		desc.task_id = task_id_is_work_queue;
+		_object.store(instance);
+		_task_id = task_id_is_work_queue;
 		instance->ScheduleNow();
 		return OK;
 
@@ -477,8 +492,8 @@ int Roboclaw::task_spawn(int argc, char *argv[])
 	}
 
 	delete instance;
-	desc.object.store(nullptr);
-	desc.task_id = -1;
+	_object.store(nullptr);
+	_task_id = -1;
 
 	printf("Ending task_spawn");
 
@@ -526,5 +541,5 @@ int Roboclaw::print_status()
 
 extern "C" __EXPORT int roboclaw_main(int argc, char *argv[])
 {
-	return ModuleBase::main(Roboclaw::desc, argc, argv);
+	return Roboclaw::main(argc, argv);
 }

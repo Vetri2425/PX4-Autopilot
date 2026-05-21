@@ -118,7 +118,13 @@ int Roboclaw::initializeUART()
 		break;
 	}
 
-	// start serial port
+	// start serial port — close any fd from a previous retry to avoid leaking
+	// descriptors while we wait for the RoboClaw to finish powering up.
+	if (_uart_fd > 0) {
+		close(_uart_fd);
+		_uart_fd = 0;
+	}
+
 	_uart_fd = open(_stored_device_name, O_RDWR | O_NOCTTY);
 
 	if (_uart_fd < 0) { err(1, "could not open %s", _stored_device_name); }
@@ -160,8 +166,8 @@ int Roboclaw::initializeUART()
 	uint8_t response_buffer[READ_STATUS_RESPONSE_SIZE];
 
 	if (receiveTransaction(Command::ReadStatus, response_buffer, READ_STATUS_RESPONSE_SIZE) < READ_STATUS_RESPONSE_SIZE) {
-		PX4_ERR("No valid response, stopping driver");
-		request_stop();
+		// Do NOT request_stop() here. The RoboClaw may simply not be ready yet
+		// (it boots slower than PX4). Run() retries until MAX_INIT_RETRIES.
 		return ERROR;
 
 	} else {
@@ -199,11 +205,6 @@ void Roboclaw::Run()
 
 	_mixing_output.update();
 
-	if (!_uart_initialized) {
-		initializeUART();
-		_uart_initialized = true;
-	}
-
 	// check for parameter updates
 	if (_parameter_update_sub.updated()) {
 		// Read from topic to clear updated flag
@@ -214,7 +215,25 @@ void Roboclaw::Run()
 	}
 
 	_actuator_armed_sub.update();
+	// Keep this BEFORE the init retry below: the first call registers the
+	// MixingOutput callback / backup schedule that re-fires Run(). Returning
+	// early before it would stall rescheduling and the retry loop with it.
 	_mixing_output.updateSubscriptions(false);
+
+	if (!_uart_initialized) {
+		if (initializeUART() == OK) {
+			_uart_initialized = true;
+			_init_retries = 0;
+
+		} else if (++_init_retries > MAX_INIT_RETRIES) {
+			PX4_ERR("No valid response after %d retries, stopping driver", MAX_INIT_RETRIES);
+			request_stop();
+		}
+
+		// RoboClaw not ready yet (it boots slower than PX4) or just gave up:
+		// skip encoder read this tick and retry on the next schedule.
+		return;
+	}
 
 	if (readEncoder() != OK) {
 		PX4_ERR("Error reading encoders");

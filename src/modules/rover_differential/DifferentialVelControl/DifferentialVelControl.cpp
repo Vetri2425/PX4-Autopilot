@@ -143,7 +143,11 @@ void DifferentialVelControl::generateVelocitySetpoint()
 						  + velocity_in_local_frame(1) * sinf(_vehicle_yaw);
 			const float speed_sign = (fwd_component >= 0.f) ? 1.f : -1.f;
 			differential_velocity_setpoint.speed   = speed_sign * mag;
-			differential_velocity_setpoint.bearing = bearing;
+			// Bug 7 fix: for reverse velocity, flip the bearing 180° so it points where the
+			// nose currently faces (≈ vehicle_yaw). This keeps heading_error near zero and lets
+			// the signed (negative) speed drive the rover straight backward instead of triggering
+			// a SPOT_TURN. Mirrors DifferentialPosControl.cpp yaw_setpoint handling.
+			differential_velocity_setpoint.bearing = (speed_sign > 0.f) ? bearing : matrix::wrap_pi(bearing + M_PI_F);
 		}
 
 		_differential_velocity_setpoint_pub.publish(differential_velocity_setpoint);

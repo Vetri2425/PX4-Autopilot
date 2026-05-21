@@ -68,7 +68,16 @@ int Roboclaw::initializeUART()
 
 	int32_t baud_rate_parameter_value{0};
 	int32_t baud_rate_posix{0};
-	param_get(param_find(_stored_baud_rate_parameter), &baud_rate_parameter_value);
+
+	param_t baud_param = param_find(_stored_baud_rate_parameter);
+
+	if (baud_param == PARAM_INVALID) {
+		// Baud parameter not found in this build — default to 115200
+		baud_rate_parameter_value = 115200;
+
+	} else {
+		param_get(baud_param, &baud_rate_parameter_value);
+	}
 
 	switch (baud_rate_parameter_value) {
 	case 0: // Auto

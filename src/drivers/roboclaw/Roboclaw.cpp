@@ -132,6 +132,13 @@ int Roboclaw::initializeUART()
 	uart_config.c_oflag &= ~ONLCR; // no CR for every LF
 	uart_config.c_cflag &= ~CRTSCTS;
 
+	// Set raw mode — critical for binary protocol communication
+	uart_config.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
+	uart_config.c_oflag &= ~OPOST;
+	uart_config.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
+	uart_config.c_cflag &= ~(CSIZE | PARENB);
+	uart_config.c_cflag |= CS8;
+
 	// Set baud rate
 	ret = cfsetispeed(&uart_config, baud_rate_posix);
 
@@ -367,7 +374,12 @@ int Roboclaw::writeCommandWithPayload(Command command, uint8_t *wbuff, size_t by
 
 int Roboclaw::readAcknowledgement()
 {
-	int select_status = select(_uart_fd + 1, &_uart_fd_set, nullptr, nullptr, &_uart_fd_timeout);
+	fd_set read_fds;
+	FD_ZERO(&read_fds);
+	FD_SET(_uart_fd, &read_fds);
+	struct timeval timeout = _uart_fd_timeout;
+
+	int select_status = select(_uart_fd + 1, &read_fds, nullptr, nullptr, &timeout);
 
 	if (select_status <= 0) {
 		PX4_ERR("ACK timeout");
@@ -417,7 +429,12 @@ int Roboclaw::readResponse(Command command, uint8_t *read_buffer, size_t bytes_t
 	size_t total_bytes_read = 0;
 
 	while (total_bytes_read < bytes_to_read) {
-		int select_status = select(_uart_fd + 1, &_uart_fd_set, nullptr, nullptr, &_uart_fd_timeout);
+		fd_set read_fds;
+		FD_ZERO(&read_fds);
+		FD_SET(_uart_fd, &read_fds);
+		struct timeval timeout = _uart_fd_timeout;
+
+		int select_status = select(_uart_fd + 1, &read_fds, nullptr, nullptr, &timeout);
 
 		if (select_status <= 0) {
 			PX4_ERR("Select timeout %d\n", select_status);

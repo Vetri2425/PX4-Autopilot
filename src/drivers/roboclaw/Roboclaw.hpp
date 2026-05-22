@@ -133,11 +133,6 @@ private:
 	// UART handling
 	int initializeUART();
 	bool _uart_initialized{false};
-	// Boot-timing retry: RoboClaw needs ~1-2s to init its serial after power-up,
-	// longer than PX4's boot. Retry initializeUART() until it ACKs instead of
-	// dying on the first miss. ~10ms work-queue tick * 500 = ~5s budget.
-	int _init_retries{0};
-	static constexpr int MAX_INIT_RETRIES = 500;
 	int _uart_fd{0};
 	fd_set _uart_fd_set;
 	struct timeval _uart_fd_timeout;

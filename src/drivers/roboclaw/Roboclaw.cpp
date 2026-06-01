@@ -173,16 +173,21 @@ int Roboclaw::initializeUART()
 bool Roboclaw::updateOutputs(bool stop_motors, uint16_t outputs[MAX_ACTUATORS],
 			     unsigned num_outputs, unsigned num_control_groups_updated)
 {
-	float right_motor_output = ((float)outputs[0] - 128.0f) / 127.f;
-	float left_motor_output = ((float)outputs[1] - 128.0f) / 127.f;
+	float right = ((float)outputs[0] - 128.0f) / 127.f;
+	float left  = ((float)outputs[1] - 128.0f) / 127.f;
 
-	if (stop_motors) {
+	// Deadband around the zero point (128). The mixer sometimes sends 129 instead of 128
+	// when the commanded speed is zero. This is critical with high RBCLW_QPPS_MAX.
+	const float DEAD = 0.03f;   // ~3.8 counts tolerance
+	if (fabsf(right) < DEAD) right = 0.0f;
+	if (fabsf(left)  < DEAD) left  = 0.0f;
+
+	if (stop_motors || (right == 0.0f && left == 0.0f)) {
 		setMotorSpeed(Motor::Right, 0.f);
 		setMotorSpeed(Motor::Left, 0.f);
-
 	} else {
-		setMotorSpeed(Motor::Right, right_motor_output);
-		setMotorSpeed(Motor::Left, left_motor_output);
+		setMotorSpeed(Motor::Right, right);
+		setMotorSpeed(Motor::Left, left);
 	}
 
 	return true;
@@ -266,6 +271,13 @@ void Roboclaw::setMotorSpeed(Motor motor, float value)
 	// Map normalized command [-1, 1] to QPPS using RBCLW_QPPS_MAX, then send
 	// Drive-With-Signed-Speed opcodes (35/36). The RoboClaw closes the velocity
 	// loop using its onboard PID (tuned in BasicMicro Motion Studio).
+
+	// Extra safety: with high QPPS_MAX even very small normalized values become real speed.
+	// Anything below ~1% command is treated as stop.
+	if (fabsf(value) < 0.01f) {
+		value = 0.0f;
+	}
+
 	const int32_t qpps = (int32_t)(math::constrain(value, -1.f, 1.f)
 				       * (float)_param_rbclw_qpps_max.get());
 

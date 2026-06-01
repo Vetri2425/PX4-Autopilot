@@ -179,10 +179,13 @@ bool Roboclaw::updateOutputs(bool stop_motors, uint16_t outputs[MAX_ACTUATORS],
 	// Deadband around the zero point (128). The mixer sometimes sends 129 instead of 128
 	// when the commanded speed is zero. This is critical with high RBCLW_QPPS_MAX.
 	const float DEAD = 0.03f;   // ~3.8 counts tolerance
-	if (fabsf(right) < DEAD) right = 0.0f;
-	if (fabsf(left)  < DEAD) left  = 0.0f;
+	const bool right_zero = fabsf(right) < DEAD;
+	const bool left_zero  = fabsf(left)  < DEAD;
 
-	if (stop_motors || (right == 0.0f && left == 0.0f)) {
+	if (right_zero) { right = 0.0f; }
+	if (left_zero)  { left  = 0.0f; }
+
+	if (stop_motors || (right_zero && left_zero)) {
 		setMotorSpeed(Motor::Right, 0.f);
 		setMotorSpeed(Motor::Left, 0.f);
 	} else {

@@ -73,9 +73,9 @@ EstimatorInterface::~EstimatorInterface()
 #if defined(CONFIG_EKF2_AUXVEL)
 	delete _auxvel_buffer;
 #endif // CONFIG_EKF2_AUXVEL
-#if defined(CONFIG_EKF2_RANGING_BEACON)
-	delete _ranging_beacon_buffer;
-#endif // CONFIG_EKF2_RANGING_BEACON
+#if defined(CONFIG_EKF2_WHEEL_ENCODER)
+	delete _wheel_encoder_buffer;
+#endif // CONFIG_EKF2_WHEEL_ENCODER
 }
 
 // Accumulate imu data and store to buffer at desired rate
@@ -100,7 +100,7 @@ void EstimatorInterface::setIMUData(const imuSample &imu_sample)
 		imuSample imu_downsampled = _imu_down_sampler.getDownSampledImuAndTriggerReset();
 
 		// as a precaution constrain the integration delta time to prevent numerical problems
-		const float filter_update_period_s = _params.ekf2_predict_us * 1e-6f;
+		const float filter_update_period_s = _params.filter_update_interval_us * 1e-6f;
 		const float imu_min_dt = 0.5f * filter_update_period_s;
 		const float imu_max_dt = 2.0f * filter_update_period_s;
 
@@ -131,7 +131,7 @@ void EstimatorInterface::setMagData(const magSample &mag_sample)
 
 	// Allocate the required buffer size if not previously done
 	if (_mag_buffer == nullptr) {
-		_mag_buffer = new TimestampedRingBuffer<magSample>(_obs_buffer_length);
+		_mag_buffer = new RingBuffer<magSample>(_obs_buffer_length);
 
 		if (_mag_buffer == nullptr || !_mag_buffer->valid()) {
 			delete _mag_buffer;
@@ -142,7 +142,7 @@ void EstimatorInterface::setMagData(const magSample &mag_sample)
 	}
 
 	const int64_t time_us = mag_sample.time_us
-				- static_cast<int64_t>(_params.ekf2_mag_delay * 1000)
+				- static_cast<int64_t>(_params.mag_delay_ms * 1000)
 				- static_cast<int64_t>(_dt_ekf_avg * 5e5f); // seconds to microseconds divided by 2
 
 	// limit data rate to prevent data being lost
@@ -170,7 +170,7 @@ void EstimatorInterface::setGpsData(const gnssSample &gnss_sample)
 
 	// Allocate the required buffer size if not previously done
 	if (_gps_buffer == nullptr) {
-		_gps_buffer = new TimestampedRingBuffer<gnssSample>(_obs_buffer_length);
+		_gps_buffer = new RingBuffer<gnssSample>(_obs_buffer_length);
 
 		if (_gps_buffer == nullptr || !_gps_buffer->valid()) {
 			delete _gps_buffer;
@@ -181,6 +181,7 @@ void EstimatorInterface::setGpsData(const gnssSample &gnss_sample)
 	}
 
 	const int64_t time_us = gnss_sample.time_us
+				- static_cast<int64_t>(_params.gps_delay_ms * 1000)
 				- static_cast<int64_t>(_dt_ekf_avg * 5e5f); // seconds to microseconds divided by 2
 
 	if (time_us >= static_cast<int64_t>(_gps_buffer->get_newest().time_us + _min_obs_interval_us)) {
@@ -216,7 +217,7 @@ void EstimatorInterface::setBaroData(const baroSample &baro_sample)
 
 	// Allocate the required buffer size if not previously done
 	if (_baro_buffer == nullptr) {
-		_baro_buffer = new TimestampedRingBuffer<baroSample>(_obs_buffer_length);
+		_baro_buffer = new RingBuffer<baroSample>(_obs_buffer_length);
 
 		if (_baro_buffer == nullptr || !_baro_buffer->valid()) {
 			delete _baro_buffer;
@@ -227,7 +228,7 @@ void EstimatorInterface::setBaroData(const baroSample &baro_sample)
 	}
 
 	const int64_t time_us = baro_sample.time_us
-				- static_cast<int64_t>(_params.ekf2_baro_delay * 1000)
+				- static_cast<int64_t>(_params.baro_delay_ms * 1000)
 				- static_cast<int64_t>(_dt_ekf_avg * 5e5f); // seconds to microseconds divided by 2
 
 	// limit data rate to prevent data being lost
@@ -255,7 +256,7 @@ void EstimatorInterface::setAirspeedData(const airspeedSample &airspeed_sample)
 
 	// Allocate the required buffer size if not previously done
 	if (_airspeed_buffer == nullptr) {
-		_airspeed_buffer = new TimestampedRingBuffer<airspeedSample>(_obs_buffer_length);
+		_airspeed_buffer = new RingBuffer<airspeedSample>(_obs_buffer_length);
 
 		if (_airspeed_buffer == nullptr || !_airspeed_buffer->valid()) {
 			delete _airspeed_buffer;
@@ -266,7 +267,7 @@ void EstimatorInterface::setAirspeedData(const airspeedSample &airspeed_sample)
 	}
 
 	const int64_t time_us = airspeed_sample.time_us
-				- static_cast<int64_t>(_params.ekf2_asp_delay * 1000)
+				- static_cast<int64_t>(_params.airspeed_delay_ms * 1000)
 				- static_cast<int64_t>(_dt_ekf_avg * 5e5f); // seconds to microseconds divided by 2
 
 	// limit data rate to prevent data being lost
@@ -293,7 +294,7 @@ void EstimatorInterface::setRangeData(const sensor::rangeSample &range_sample)
 
 	// Allocate the required buffer size if not previously done
 	if (_range_buffer == nullptr) {
-		_range_buffer = new TimestampedRingBuffer<sensor::rangeSample>(_obs_buffer_length);
+		_range_buffer = new RingBuffer<sensor::rangeSample>(_obs_buffer_length);
 
 		if (_range_buffer == nullptr || !_range_buffer->valid()) {
 			delete _range_buffer;
@@ -304,7 +305,7 @@ void EstimatorInterface::setRangeData(const sensor::rangeSample &range_sample)
 	}
 
 	const int64_t time_us = range_sample.time_us
-				- static_cast<int64_t>(_params.ekf2_rng_delay * 1000)
+				- static_cast<int64_t>(_params.range_delay_ms * 1000)
 				- static_cast<int64_t>(_dt_ekf_avg * 5e5f); // seconds to microseconds divided by 2
 
 	// limit data rate to prevent data being lost
@@ -332,7 +333,7 @@ void EstimatorInterface::setOpticalFlowData(const flowSample &flow)
 
 	// Allocate the required buffer size if not previously done
 	if (_flow_buffer == nullptr) {
-		_flow_buffer = new TimestampedRingBuffer<flowSample>(_imu_buffer_length);
+		_flow_buffer = new RingBuffer<flowSample>(_imu_buffer_length);
 
 		if (_flow_buffer == nullptr || !_flow_buffer->valid()) {
 			delete _flow_buffer;
@@ -343,7 +344,7 @@ void EstimatorInterface::setOpticalFlowData(const flowSample &flow)
 	}
 
 	const int64_t time_us = flow.time_us
-				- static_cast<int64_t>(_params.ekf2_of_delay * 1000)
+				- static_cast<int64_t>(_params.flow_delay_ms * 1000)
 				- static_cast<int64_t>(_dt_ekf_avg * 5e5f); // seconds to microseconds divided by 2
 
 	// limit data rate to prevent data being lost
@@ -370,7 +371,7 @@ void EstimatorInterface::setExtVisionData(const extVisionSample &evdata)
 
 	// Allocate the required buffer size if not previously done
 	if (_ext_vision_buffer == nullptr) {
-		_ext_vision_buffer = new TimestampedRingBuffer<extVisionSample>(_obs_buffer_length);
+		_ext_vision_buffer = new RingBuffer<extVisionSample>(_obs_buffer_length);
 
 		if (_ext_vision_buffer == nullptr || !_ext_vision_buffer->valid()) {
 			delete _ext_vision_buffer;
@@ -382,7 +383,7 @@ void EstimatorInterface::setExtVisionData(const extVisionSample &evdata)
 
 	// calculate the system time-stamp for the mid point of the integration period
 	const int64_t time_us = evdata.time_us
-				- static_cast<int64_t>(_params.ekf2_ev_delay * 1000)
+				- static_cast<int64_t>(_params.ev_delay_ms * 1000)
 				- static_cast<int64_t>(_dt_ekf_avg * 5e5f); // seconds to microseconds divided by 2
 
 	// limit data rate to prevent data being lost
@@ -410,7 +411,7 @@ void EstimatorInterface::setAuxVelData(const auxVelSample &auxvel_sample)
 
 	// Allocate the required buffer size if not previously done
 	if (_auxvel_buffer == nullptr) {
-		_auxvel_buffer = new TimestampedRingBuffer<auxVelSample>(_obs_buffer_length);
+		_auxvel_buffer = new RingBuffer<auxVelSample>(_obs_buffer_length);
 
 		if (_auxvel_buffer == nullptr || !_auxvel_buffer->valid()) {
 			delete _auxvel_buffer;
@@ -421,7 +422,7 @@ void EstimatorInterface::setAuxVelData(const auxVelSample &auxvel_sample)
 	}
 
 	const int64_t time_us = auxvel_sample.time_us
-				- static_cast<int64_t>(_params.ekf2_avel_delay * 1000)
+				- static_cast<int64_t>(_params.auxvel_delay_ms * 1000)
 				- static_cast<int64_t>(_dt_ekf_avg * 5e5f); // seconds to microseconds divided by 2
 
 	// limit data rate to prevent data being lost
@@ -439,45 +440,43 @@ void EstimatorInterface::setAuxVelData(const auxVelSample &auxvel_sample)
 }
 #endif // CONFIG_EKF2_AUXVEL
 
-#if defined(CONFIG_EKF2_RANGING_BEACON)
-void EstimatorInterface::setRangingBeaconData(const rangingBeaconSample &ranging_beacon_sample)
+#if defined(CONFIG_EKF2_WHEEL_ENCODER)
+void EstimatorInterface::setWheelEncoderData(const wheelEncoderSample &wheel_encoder_sample)
 {
-
 	if (!_initialised) {
 		return;
 	}
 
 	// Allocate the required buffer size if not previously done
-	if (_ranging_beacon_buffer == nullptr) {
-		_ranging_beacon_buffer = new TimestampedRingBuffer<rangingBeaconSample>(_obs_buffer_length);
+	if (_wheel_encoder_buffer == nullptr) {
+		_wheel_encoder_buffer = new RingBuffer<wheelEncoderSample>(_obs_buffer_length);
 
-		if (_ranging_beacon_buffer == nullptr || !_ranging_beacon_buffer->valid()) {
-			delete _ranging_beacon_buffer;
-			_ranging_beacon_buffer = nullptr;
-			printBufferAllocationFailed("ranging beacon");
+		if (_wheel_encoder_buffer == nullptr || !_wheel_encoder_buffer->valid()) {
+			delete _wheel_encoder_buffer;
+			_wheel_encoder_buffer = nullptr;
+			printBufferAllocationFailed("wheel encoder");
 			return;
 		}
 	}
 
-	const int64_t time_us = ranging_beacon_sample.time_us
-				- static_cast<int64_t>(_params.ekf2_rngbc_delay * 1000)
+	const int64_t time_us = wheel_encoder_sample.time_us
+				- static_cast<int64_t>(_params.wenc_delay_ms * 1000)
 				- static_cast<int64_t>(_dt_ekf_avg * 5e5f); // seconds to microseconds divided by 2
 
 	// limit data rate to prevent data being lost
-	if (time_us >= static_cast<int64_t>(_ranging_beacon_buffer->get_newest().time_us + _min_obs_interval_us)) {
+	if (time_us >= static_cast<int64_t>(_wheel_encoder_buffer->get_newest().time_us + _min_obs_interval_us)) {
 
-		rangingBeaconSample ranging_beacon_sample_new{ranging_beacon_sample};
-		ranging_beacon_sample_new.time_us = time_us;
+		wheelEncoderSample wheel_encoder_sample_new{wheel_encoder_sample};
+		wheel_encoder_sample_new.time_us = time_us;
 
-		_ranging_beacon_buffer->push(ranging_beacon_sample_new);
-		_time_last_ranging_beacon_buffer_push = _time_latest_us;
+		_wheel_encoder_buffer->push(wheel_encoder_sample_new);
 
 	} else {
-		ECL_WARN("ranging beacon data too fast %" PRIi64 " < %" PRIu64 " + %d", time_us,
-			 _ranging_beacon_buffer->get_newest().time_us, _min_obs_interval_us);
+		ECL_WARN("wheel encoder data too fast %" PRIi64 " < %" PRIu64 " + %d", time_us,
+			 _wheel_encoder_buffer->get_newest().time_us, _min_obs_interval_us);
 	}
 }
-#endif // CONFIG_EKF2_RANGING_BEACON
+#endif // CONFIG_EKF2_WHEEL_ENCODER
 
 void EstimatorInterface::setSystemFlagData(const systemFlagUpdate &system_flags)
 {
@@ -487,7 +486,7 @@ void EstimatorInterface::setSystemFlagData(const systemFlagUpdate &system_flags)
 
 	// Allocate the required buffer size if not previously done
 	if (_system_flag_buffer == nullptr) {
-		_system_flag_buffer = new TimestampedRingBuffer<systemFlagUpdate>(_obs_buffer_length);
+		_system_flag_buffer = new RingBuffer<systemFlagUpdate>(_obs_buffer_length);
 
 		if (_system_flag_buffer == nullptr || !_system_flag_buffer->valid()) {
 			delete _system_flag_buffer;
@@ -519,11 +518,11 @@ void EstimatorInterface::setDragData(const imuSample &imu)
 {
 	// down-sample the drag specific force data by accumulating and calculating the mean when
 	// sufficient samples have been collected
-	if (_params.ekf2_drag_ctrl > 0) {
+	if (_params.drag_ctrl > 0) {
 
 		// Allocate the required buffer size if not previously done
 		if (_drag_buffer == nullptr) {
-			_drag_buffer = new TimestampedRingBuffer<dragSample>(_obs_buffer_length);
+			_drag_buffer = new RingBuffer<dragSample>(_obs_buffer_length);
 
 			if (_drag_buffer == nullptr || !_drag_buffer->valid()) {
 				delete _drag_buffer;
@@ -580,15 +579,15 @@ void EstimatorInterface::setDragData(const imuSample &imu)
 
 bool EstimatorInterface::initialise_interface(uint64_t timestamp)
 {
-	const float filter_update_period_ms = _params.ekf2_predict_us / 1000.f;
+	const float filter_update_period_ms = _params.filter_update_interval_us / 1000.f;
 
 	// calculate the IMU buffer length required to accomodate the maximum delay with some allowance for jitter
-	_imu_buffer_length = math::max(2, (int)ceilf(_params.ekf2_delay_max / filter_update_period_ms));
+	_imu_buffer_length = math::max(2, (int)ceilf(_params.delay_max_ms / filter_update_period_ms));
 
 	// set the observation buffer length to handle the minimum time of arrival between observations in combination
 	// with the worst case delay from current time to ekf fusion time
 	// allow for worst case 50% extension of the ekf fusion time horizon delay due to timing jitter
-	const float ekf_delay_ms = _params.ekf2_delay_max * 1.5f;
+	const float ekf_delay_ms = _params.delay_max_ms * 1.5f;
 	_obs_buffer_length = roundf(ekf_delay_ms / filter_update_period_ms);
 
 	// limit to be no longer than the IMU buffer (we can't process data faster than the EKF prediction rate)
@@ -661,24 +660,7 @@ int EstimatorInterface::getNumberOfActiveHorizontalPositionAidingSources() const
 {
 	return int(_control_status.flags.gnss_pos)
 	       + int(_control_status.flags.ev_pos)
-	       + int(_control_status.flags.aux_gpos)
-	       + int(_control_status.flags.rngbcn_fusion);
-}
-
-bool EstimatorInterface::isHorizontalPositionAidingActive() const
-{
-	return getNumberOfActiveHorizontalPositionAidingSources() > 0;
-}
-
-bool EstimatorInterface::isOnlyActiveSourceOfHorizontalVelocityAiding(const bool aiding_flag) const
-{
-	return aiding_flag && !isOtherSourceOfHorizontalVelocityAidingThan(aiding_flag);
-}
-
-bool EstimatorInterface::isOtherSourceOfHorizontalVelocityAidingThan(const bool aiding_flag) const
-{
-	const int nb_sources = getNumberOfActiveHorizontalVelocityAidingSources();
-	return aiding_flag ? nb_sources > 1 : nb_sources > 0;
+	       + int(_control_status.flags.aux_gpos);
 }
 
 int EstimatorInterface::getNumberOfActiveHorizontalVelocityAidingSources() const
@@ -740,8 +722,7 @@ bool EstimatorInterface::isNorthEastAidingActive() const
 {
 	return _control_status.flags.gnss_pos
 	       || _control_status.flags.gnss_vel
-	       || _control_status.flags.aux_gpos
-	       || (_control_status.flags.ev_pos && _control_status.flags.yaw_align);
+	       || _control_status.flags.aux_gpos;
 }
 
 void EstimatorInterface::printBufferAllocationFailed(const char *buffer_name)

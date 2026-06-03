@@ -63,6 +63,36 @@ jobs:
              src/drivers/roboclaw/Roboclaw.hpp
           cp fork_patches/src/drivers/roboclaw/module.yaml \
              src/drivers/roboclaw/module.yaml
+          # EKF2 wheel-encoder body-frame velocity fusion (ground rover).
+          # All EKF2 files below are v1.16.2-stock + additive wheel-encoder changes
+          # (re-anchored onto v1.16.2 per base-discipline rule). New dir must be created.
+          mkdir -p src/modules/ekf2/EKF/aid_sources/wheel_encoder
+          cp fork_patches/msg/EstimatorAidSource3d.msg \
+             msg/EstimatorAidSource3d.msg
+          cp fork_patches/src/modules/ekf2/Kconfig \
+             src/modules/ekf2/Kconfig
+          cp fork_patches/src/modules/ekf2/CMakeLists.txt \
+             src/modules/ekf2/CMakeLists.txt
+          cp fork_patches/src/modules/ekf2/params_wheel_encoder.yaml \
+             src/modules/ekf2/params_wheel_encoder.yaml
+          cp fork_patches/src/modules/ekf2/EKF2.cpp \
+             src/modules/ekf2/EKF2.cpp
+          cp fork_patches/src/modules/ekf2/EKF2.hpp \
+             src/modules/ekf2/EKF2.hpp
+          cp fork_patches/src/modules/ekf2/EKF/CMakeLists.txt \
+             src/modules/ekf2/EKF/CMakeLists.txt
+          cp fork_patches/src/modules/ekf2/EKF/common.h \
+             src/modules/ekf2/EKF/common.h
+          cp fork_patches/src/modules/ekf2/EKF/control.cpp \
+             src/modules/ekf2/EKF/control.cpp
+          cp fork_patches/src/modules/ekf2/EKF/ekf.h \
+             src/modules/ekf2/EKF/ekf.h
+          cp fork_patches/src/modules/ekf2/EKF/estimator_interface.h \
+             src/modules/ekf2/EKF/estimator_interface.h
+          cp fork_patches/src/modules/ekf2/EKF/estimator_interface.cpp \
+             src/modules/ekf2/EKF/estimator_interface.cpp
+          cp fork_patches/src/modules/ekf2/EKF/aid_sources/wheel_encoder/wheel_encoder_fusion.cpp \
+             src/modules/ekf2/EKF/aid_sources/wheel_encoder/wheel_encoder_fusion.cpp
 
       - name: Install dependencies
         run: |

@@ -1,0 +1,71 @@
+module_name: ekf2
+parameters:
+- group: EKF2
+  definitions:
+    EKF2_WENC_CTRL:
+      description:
+        short: Wheel encoder fusion enable
+        long: |
+          Enable fusion of wheel-encoder body-frame velocity for ground rovers.
+          Acts as a secondary aid: it is only fused while another source already
+          provides horizontal aiding, so wheel encoders never initialise the
+          horizontal solution on their own. Requires a valid EKF2_WENC_RAD.
+      type: int32
+      default: 0
+      min: 0
+      max: 1
+      reboot_required: true
+    EKF2_WENC_RAD:
+      description:
+        short: Wheel effective rolling radius
+        long: |
+          Effective rolling radius of the driven wheels, used to convert the
+          driver's wheel speeds (rad/s) into a forward velocity (m/s).
+          A value of 0 keeps wheel-encoder fusion disabled until calibrated.
+      type: float
+      default: 0.0
+      min: 0.0
+      max: 1.0
+      unit: m
+      decimal: 4
+      reboot_required: true
+    EKF2_WENC_DELAY:
+      description:
+        short: Wheel encoder measurement delay relative to IMU measurements
+      type: float
+      default: 5.0
+      min: 0
+      max: 300
+      unit: ms
+      reboot_required: true
+      decimal: 1
+    EKF2_WENC_NOISE:
+      description:
+        short: Wheel encoder forward velocity measurement noise
+      type: float
+      default: 0.1
+      min: 0.01
+      max: 5.0
+      unit: m/s
+      decimal: 2
+    EKF2_WENC_LAT_N:
+      description:
+        short: Wheel encoder side-slip (lateral) constraint noise
+        long: |
+          Observation noise of the non-holonomic body-lateral zero-velocity
+          constraint. Smaller values more strongly enforce zero side-slip.
+      type: float
+      default: 0.1
+      min: 0.01
+      max: 5.0
+      unit: m/s
+      decimal: 2
+    EKF2_WENC_GATE:
+      description:
+        short: Wheel encoder velocity innovation consistency gate size
+      type: float
+      default: 5.0
+      min: 1.0
+      max: 20.0
+      unit: SD
+      decimal: 1

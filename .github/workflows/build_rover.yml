@@ -93,6 +93,11 @@ jobs:
              src/modules/ekf2/EKF/estimator_interface.cpp
           cp fork_patches/src/modules/ekf2/EKF/aid_sources/wheel_encoder/wheel_encoder_fusion.cpp \
              src/modules/ekf2/EKF/aid_sources/wheel_encoder/wheel_encoder_fusion.cpp
+          # Logger overlay: v1.16.2-stock logged_topics.cpp + wheel-encoder debug
+          # topics (raw wheel_encoders + estimator_aid_src_wheel_encoder). Base is
+          # v1.16.2 stock (NOT the fork's post-v1.18 tree) per base-discipline rule.
+          cp fork_patches/src/modules/logger/logged_topics.cpp \
+             src/modules/logger/logged_topics.cpp
 
       - name: Install dependencies
         run: |

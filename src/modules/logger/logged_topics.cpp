@@ -45,26 +45,26 @@ using namespace px4::logger;
 
 void LoggedTopics::add_default_topics()
 {
+	add_optional_topic("ackermann_velocity_setpoint", 100);
 	add_topic("action_request");
 	add_topic("actuator_armed");
 	add_optional_topic("actuator_controls_status_0", 300);
 	add_topic("airspeed", 1000);
 	add_optional_topic("airspeed_validated", 200);
 	add_optional_topic("autotune_attitude_control_status", 100);
-	add_topic_multi("battery_info", 5000, 3);
 	add_optional_topic("camera_capture");
 	add_optional_topic("camera_trigger");
 	add_topic("cellular_status", 200);
 	add_topic("commander_state");
 	add_topic("config_overrides");
 	add_topic("cpuload");
+	add_optional_topic("differential_velocity_setpoint", 100);
 	add_topic("distance_sensor_mode_change_request");
-	add_topic("device_information", 900);
-	add_topic_multi("dronecan_node_status", 250);
 	add_optional_topic("external_ins_attitude");
 	add_optional_topic("external_ins_global_position");
 	add_optional_topic("external_ins_local_position");
-	add_topic("esc_status", 100);
+	// add_optional_topic("esc_status", 250);
+	add_topic("esc_status");
 	add_topic("failure_detector_status", 100);
 	add_topic("failsafe_flags");
 	add_optional_topic("follow_target", 500);
@@ -73,13 +73,12 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic("flaps_setpoint", 1000);
 	add_optional_topic("flight_phase_estimation", 1000);
 	add_optional_topic("fuel_tank_status", 10);
-	add_optional_topic("gain_compression", 100);
 	add_topic("gimbal_manager_set_attitude", 500);
 	add_optional_topic("generator_status");
-	add_topic("gps_dump");
+	add_optional_topic("gps_dump");
 	add_optional_topic("gimbal_controls", 200);
 	add_optional_topic("gripper");
-	add_optional_topic_multi("heater_status");
+	add_optional_topic("heater_status");
 	add_topic("home_position");
 	add_topic("hover_thrust_estimate", 100);
 	add_topic("input_rc", 500);
@@ -91,13 +90,13 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic("landing_gear_wheel", 100);
 	add_optional_topic("landing_target_pose", 1000);
 	add_optional_topic("launch_detection_status", 200);
-	add_topic("logger_status", 200);
 	add_optional_topic("magnetometer_bias_estimate", 200);
 	add_topic("manual_control_setpoint", 200);
 	add_topic("manual_control_switches");
 	add_topic("mission_result");
 	add_topic("navigator_mission_item");
 	add_topic("navigator_status");
+	add_topic("npfg_status", 100);
 	add_topic("offboard_control_mode", 100);
 	add_topic("onboard_computer_status", 10);
 	add_topic("parameter_update");
@@ -113,10 +112,9 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic("rover_position_setpoint", 100);
 	add_optional_topic("rover_rate_setpoint", 100);
 	add_optional_topic("rover_rate_status", 100);
-	add_optional_topic("rover_speed_setpoint", 100);
-	add_optional_topic("rover_speed_status", 100);
 	add_optional_topic("rover_steering_setpoint", 100);
 	add_optional_topic("rover_throttle_setpoint", 100);
+	add_optional_topic("rover_velocity_status", 100);
 	add_topic("rtl_time_estimate", 1000);
 	add_topic("rtl_status", 2000);
 	add_optional_topic("sensor_airflow", 100);
@@ -150,17 +148,8 @@ void LoggedTopics::add_default_topics()
 	add_topic("vehicle_rates_setpoint", 20);
 	add_topic("vehicle_roi", 1000);
 	add_topic("vehicle_status");
-	add_topic("vtx");
 	add_optional_topic("vtol_vehicle_status", 200);
 	add_topic("wind", 1000);
-	add_topic("fixed_wing_lateral_setpoint");
-	add_topic("fixed_wing_longitudinal_setpoint");
-	add_topic("longitudinal_control_configuration");
-	add_topic("lateral_control_configuration");
-	add_optional_topic("fixed_wing_lateral_guidance_status", 100);
-	add_optional_topic("fixed_wing_lateral_status", 100);
-	add_optional_topic("fixed_wing_runway_control", 100);
-	add_optional_topic("ranging_beacon", 100);
 
 	// multi topics
 	add_optional_topic_multi("actuator_outputs", 100, 3);
@@ -168,7 +157,6 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic_multi("control_allocator_status", 200, 2);
 	add_optional_topic_multi("rate_ctrl_status", 200, 2);
 	add_optional_topic_multi("sensor_hygrometer", 500, 4);
-	add_optional_topic_multi("sensor_temp", 100, 4);
 	add_optional_topic_multi("rpm", 200);
 	add_topic_multi("timesync_status", 1000, 3);
 	add_optional_topic_multi("telemetry_status", 1000, 4);
@@ -190,18 +178,23 @@ void LoggedTopics::add_default_topics()
 	add_optional_topic("estimator_selector_status", 10);
 	add_optional_topic_multi("estimator_event_flags", 10);
 	add_optional_topic_multi("estimator_optical_flow_vel", 200);
-	add_optional_topic_multi("estimator_fusion_control", 1000);
 	add_optional_topic_multi("estimator_sensor_bias", 1000);
 	add_optional_topic_multi("estimator_status", 200);
 	add_optional_topic_multi("estimator_status_flags", 10);
 	add_optional_topic_multi("yaw_estimator_status", 1000);
 
+	// wheel-encoder body-frame velocity fusion debug (ground rover):
+	// raw encoder speeds + EKF2 aid-source innovation/test-ratio/fused/rejected.
+	// add_optional_* so non-rover builds (topics absent) are unaffected.
+	add_optional_topic("wheel_encoders", 50);
+	add_optional_topic_multi("estimator_aid_src_wheel_encoder", 50);
+
 	// log all raw sensors at minimal rate (at least 1 Hz)
-	add_topic_multi("battery_status", 200, 3);
+	add_topic_multi("battery_status", 200, 2);
 	add_topic_multi("differential_pressure", 1000, 2);
 	add_topic_multi("distance_sensor", 1000, 2);
 	add_optional_topic_multi("sensor_accel", 1000, 4);
-	add_topic_multi("sensor_baro", 1000, 4);
+	add_optional_topic_multi("sensor_baro", 1000, 4);
 	add_topic_multi("sensor_gps", 1000, 2);
 	add_topic_multi("sensor_gnss_relative", 1000, 1);
 	add_optional_topic_multi("sensor_gyro", 1000, 4);
@@ -212,7 +205,8 @@ void LoggedTopics::add_default_topics()
 	add_topic_multi("vehicle_imu_status", 1000, 4);
 	add_optional_topic_multi("vehicle_magnetometer", 500, 4);
 	add_topic("vehicle_optical_flow", 500);
-	add_topic_multi("aux_global_position", 500);
+	add_topic("aux_global_position", 500);
+	//add_optional_topic("vehicle_optical_flow_vel", 100);
 	add_optional_topic("pps_capture");
 
 	// additional control allocation logging
@@ -301,7 +295,6 @@ void LoggedTopics::add_debug_topics()
 	add_topic("mag_worker_data");
 	add_topic("sensor_preflight_mag", 500);
 	add_topic("actuator_test", 500);
-	add_topic("neural_control", 50);
 }
 
 void LoggedTopics::add_estimator_replay_topics()
@@ -321,8 +314,7 @@ void LoggedTopics::add_estimator_replay_topics()
 	add_topic("vehicle_magnetometer");
 	add_topic("vehicle_status");
 	add_topic("vehicle_visual_odometry");
-	add_topic("ranging_beacon");
-	add_topic_multi("aux_global_position");
+	add_topic("aux_global_position");
 	add_topic_multi("distance_sensor");
 }
 
@@ -370,20 +362,6 @@ void LoggedTopics::add_system_identification_topics()
 	add_topic("vehicle_torque_setpoint");
 	add_topic("vehicle_acceleration");
 	add_topic("actuator_motors");
-}
-
-void LoggedTopics::add_high_rate_sensors_topics()
-{
-	add_topic_multi("distance_sensor", 10, 4);
-	add_topic_multi("sensor_baro", 10, 4);
-	add_topic_multi("sensor_optical_flow", 10, 2);
-	add_topic_multi("sensor_gps", 10, 4);
-	add_topic_multi("sensor_gnss_relative", 10, 1);
-	add_topic_multi("sensor_mag", 10, 4);
-	add_topic("estimator_aid_src_baro_hgt", 10);
-	add_topic("vehicle_air_data", 10);
-	add_topic("vehicle_magnetometer", 10);
-	add_topic("vehicle_thrust_setpoint", 10);
 }
 
 void LoggedTopics::add_mavlink_tunnel()
@@ -600,9 +578,5 @@ void LoggedTopics::initialize_configured_topics(SDLogProfileMask profile)
 
 	if (profile & SDLogProfileMask::MAVLINK_TUNNEL) {
 		add_mavlink_tunnel();
-	}
-
-	if (profile & SDLogProfileMask::HIGH_RATE_SENSORS) {
-		add_high_rate_sensors_topics();
 	}
 }

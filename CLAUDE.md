@@ -49,8 +49,10 @@ local build, work in a separate clean `v1.16.2` checkout, never in this working 
 
 Working tree was reset to `origin/main`. Discarded, all recoverable:
 
-- **Commit `4152220472`** (`chore(build)`: local build script + CLAUDE.md rover rewrite) — dropped.
-  Recover: `git cherry-pick 4152220472`, or branch **`backup/local-build-script-20260805`**.
+- **Commit `4152220472`** (`chore(build)`: local build script + CLAUDE.md rover rewrite) — dropped
+  intentionally, along with its backup branch. **No backup remains.** The commit is unreferenced;
+  `git cherry-pick 4152220472` works only while it survives in the reflog (~90 days from
+  2026-08-05, sooner if `git gc` runs). Treat the local build script as gone.
 - **Uncommitted loiter/stop work** — `DifferentialAutoMode.cpp` (+17, LOITER hold-position
   setpoint) and `DifferentialPosControl.{cpp,hpp}` (+33, zero-speed stop branch). Not in the
   overlay, so it never affected CI. Patch saved in the scratchpad backup (volatile).

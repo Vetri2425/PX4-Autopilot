@@ -1,12 +1,69 @@
-# PX4-Autopilot
+# PX4-Autopilot — Vetri2425 rover fork
 
-Safety-critical C/C++ flight control firmware for autopilots, plus SITL
-simulation and Python tooling.
+Custom PX4 firmware for a **CubeOrangePlus differential-drive marking rover**.
+Safety-critical C/C++. This file is the only preloaded context.
 
-- **Commits:** use the `/commit` skill. Conventional commit format with
-  topic-based scope: `type(scope): description`.
-- **Pull requests:** use the `/pr` skill.
-- **No Claude attribution** — no `Co-Authored-By: Claude`, no "Generated
-  with Claude Code" footer.
-- **Style:** run `make format` on changed C/C++ before committing; CI
-  enforces `make check_format`.
+## Fork facts (verified 2026-08-05)
+
+- **Repo:** `Vetri2425/PX4-Autopilot`, branch `main`.
+- **Diverged from upstream at** `92fa89d7` (`ci(mavros): remove MAVROS integration test suite`, 2026-05-14). Fork tree is post-`v1.18.0-alpha1`.
+- **31 commits above baseline.** HEAD == `origin/main` == `06309e41a7` (`feat(logger): log wheel-encoder fusion debug topics on rover`).
+- **But CI builds against `v1.16.2`** — `build_rover.yml` checks out stock upstream `v1.16.2` and overlays 26 fork files. So all overlay files must be edited as `v1.16.2`-stock + minimal diff, NOT against the fork's own newer tree (base-discipline rule — see `.claude/memory/patches.md`).
+
+## Build — CI only
+
+```sh
+make format                           # run on changed C/C++ before commit; CI enforces check_format
+git push origin main                  # auto-triggers build_rover.yml
+```
+
+`.github/workflows/build_rover.yml` (ubuntu-22.04) is the **only** build path and the
+canonical artifact to flash: checkout stock `v1.16.2` → fetch NuttX tags → checkout fork
+`main` into `fork_patches/` → overlay 26 files → `make cubepilot_cubeorangeplus_rover`.
+See `.claude/memory/build.md` for the gh-CLI push → watch → download flow.
+
+⚠ **There is no local build script.** `Tools/local_build_rover.sh` was reverted on
+2026-08-05 and never reached `origin/main` — see "Repo state" below. Do not reference it.
+Building in this tree directly is what caused the ekf2 CMakeLists drift; if you need a
+local build, work in a separate clean `v1.16.2` checkout, never in this working tree.
+
+## Commit / PR rules
+
+- Conventional commits, topic scope: `type(scope): description`. Use `/commit`, `/pr` skills.
+- **No Claude attribution** — no `Co-Authored-By`, no "Generated with" footer.
+
+## Patch domains (26-file overlay)
+
+| Scope | Files | Purpose |
+|-------|-------|---------|
+| `boards` | `rover.px4board` | Enables ROVER_DIFFERENTIAL, ROBOCLAW, EKF2_WHEEL_ENCODER; disables FW/MC/VTOL |
+| `rover_differential` | `RoverDifferential.{cpp,hpp}`, `module.yaml`, `DifferentialVelControl/*` | RD_TANK_MODE, IK signs, disarm guard, OFFBOARD signed-speed + hold-yaw |
+| `roboclaw` | `Roboclaw.{cpp,hpp}`, `module.yaml` | QPPS velocity (opcodes 35/36), UART/raw/baud fixes, creep deadband |
+| `land_detector` | `RoverLandDetector.cpp` | Always-landed (coupled to mission_block) |
+| `navigator` | `mission_block.cpp` | Rover waypoint-acceptance bypass (coupled to land_detector) |
+| `ekf2` | 13 files incl. `EKF/aid_sources/wheel_encoder/` | Wheel-encoder body-frame velocity fusion (default OFF) |
+
+⚠ **DifferentialPosControl is NOT overlaid** — fork copy needs `RoverSpeedSetpoint.msg` absent in v1.16.2. Stock v1.16.2 PosControl is used.
+
+## Repo state (2026-08-05 cleanup)
+
+Working tree was reset to `origin/main`. Discarded, all recoverable:
+
+- **Commit `4152220472`** (`chore(build)`: local build script + CLAUDE.md rover rewrite) — dropped.
+  Recover: `git cherry-pick 4152220472`, or branch **`backup/local-build-script-20260805`**.
+- **Uncommitted loiter/stop work** — `DifferentialAutoMode.cpp` (+17, LOITER hold-position
+  setpoint) and `DifferentialPosControl.{cpp,hpp}` (+33, zero-speed stop branch). Not in the
+  overlay, so it never affected CI. Patch saved in the scratchpad backup (volatile).
+- **ekf2 CMakeLists drift** — reverted; `gps_checks.cpp` + `zero_innovation_heading_update.cpp`
+  restored (v1.16.2-correct). A stale `.git/index.lock` from 2026-06-12 was blocking all git
+  writes for ~7 weeks and was removed.
+
+## Memory index (`.claude/memory/`) — load ONLY on demand
+
+⚠ Do NOT read these at session start. Open one **only** when the current task needs it or the user asks.
+
+- `build.md` — CI/gh-CLI build & flash workflow, base-discipline rule.
+- `patches.md` — full overlay map, per-patch detail, interactions, v1.16.2 compat rules.
+- `runtime.md` — hardware wiring, RoboClaw, EKF/GPS fix, NED↔ENU, OFFBOARD safety params, open issues.
+- `progress.md` — chronological patch + CI-build log, milestones.
+- `integration.md` — **cross-project bridge**: how PX4_DXP (Jetson ROS2 + FastAPI + MAVROS) sits on top of this firmware.

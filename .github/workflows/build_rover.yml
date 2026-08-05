@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - 'Vetri2425/**'
+      - 'fw/**'
 
 jobs:
   build:
@@ -23,11 +24,15 @@ jobs:
           cd platforms/nuttx/NuttX/nuttx
           git fetch --tags --depth=1
 
+      # Patches come from the commit being built, not from main. With a
+      # hardcoded ref a build triggered from any other branch silently
+      # compiled main's patches, producing an artifact that looks like the
+      # branch but does not contain its changes.
       - name: Checkout rover patches from fork
         uses: actions/checkout@v4
         with:
           repository: Vetri2425/PX4-Autopilot
-          ref: main
+          ref: ${{ github.sha }}
           path: fork_patches
 
       - name: Apply rover patches

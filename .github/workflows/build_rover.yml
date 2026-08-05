@@ -80,6 +80,8 @@ jobs:
              src/modules/ekf2/CMakeLists.txt
           cp fork_patches/src/modules/ekf2/params_wheel_encoder.yaml \
              src/modules/ekf2/params_wheel_encoder.yaml
+          cp fork_patches/src/modules/ekf2/params_gnss.yaml \
+             src/modules/ekf2/params_gnss.yaml
           cp fork_patches/src/modules/ekf2/EKF2.cpp \
              src/modules/ekf2/EKF2.cpp
           cp fork_patches/src/modules/ekf2/EKF2.hpp \

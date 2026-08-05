@@ -545,6 +545,10 @@ private:
 		(ParamExtFloat<px4::params::EKF2_GPS_V_NOISE>) _param_ekf2_gps_v_noise,
 		(ParamExtFloat<px4::params::EKF2_GPS_P_NOISE>) _param_ekf2_gps_p_noise,
 
+# if defined(CONFIG_EKF2_GNSS_YAW)
+		(ParamExtFloat<px4::params::EKF2_GPS_YAW_N>) _param_ekf2_gps_yaw_n,
+# endif // CONFIG_EKF2_GNSS_YAW
+
 		(ParamExtFloat<px4::params::EKF2_GPS_P_GATE>) _param_ekf2_gps_p_gate,
 		(ParamExtFloat<px4::params::EKF2_GPS_V_GATE>) _param_ekf2_gps_v_gate,
 

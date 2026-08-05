@@ -74,6 +74,25 @@ parameters:
       max: 5.0
       unit: m/s
       decimal: 2
+    EKF2_GPS_YAW_N:
+      description:
+        short: Measurement noise for GNSS heading fusion
+        long: |
+          Standard deviation of the dual-antenna GNSS heading measurement.
+          This acts as a FLOOR under the accuracy reported by the receiver:
+          the fusion uses max(reported_accuracy, this), so a value above the
+          receiver's real accuracy discards it. A UM982 RTK baseline reports
+          roughly 0.8-1.1 deg (0.014-0.019 rad).
+          Lowering this makes the filter trust GNSS heading more, which also
+          raises the heading innovation test ratio. Reduce it in steps and
+          check estimator_status.hdg_test_ratio stays below 1, otherwise
+          heading fusion starts being rejected.
+      type: float
+      default: 0.1
+      min: 0.001
+      max: 1.0
+      unit: rad
+      decimal: 4
     EKF2_GPS_POS_X:
       description:
         short: X position of GPS antenna in body frame

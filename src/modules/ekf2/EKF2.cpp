@@ -94,6 +94,9 @@ EKF2::EKF2(bool multi_mode, const px4::wq_config_t &config, bool replay_mode):
 	_param_ekf2_gps_pos_z(_params->gps_pos_body(2)),
 	_param_ekf2_gps_v_noise(_params->gps_vel_noise),
 	_param_ekf2_gps_p_noise(_params->gps_pos_noise),
+#if defined(CONFIG_EKF2_GNSS_YAW)
+	_param_ekf2_gps_yaw_n(_params->gnss_heading_noise),
+#endif // CONFIG_EKF2_GNSS_YAW
 	_param_ekf2_gps_p_gate(_params->gps_pos_innov_gate),
 	_param_ekf2_gps_v_gate(_params->gps_vel_innov_gate),
 	_param_ekf2_gps_check(_params->gps_check_mask),

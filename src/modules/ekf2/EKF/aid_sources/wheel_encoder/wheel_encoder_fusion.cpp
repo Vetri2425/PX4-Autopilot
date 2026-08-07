@@ -45,6 +45,23 @@
  * applied by observing the body-lateral (body-Y) velocity as zero. The body-Z
  * axis is given a large variance so it does not meaningfully update the state.
  *
+ * IMU lever arm: the fused state velocity (_state.vel) is referenced to the
+ * IMU, not the body/axle origin the wheel encoders describe (see
+ * output_predictor.h's getVelocity(), which subtracts this same offset to
+ * report body-origin velocity). GNSS velocity, optical flow, and baro dynamic
+ * pressure all correct their sensor's measurement for this same lever arm
+ * before fusion (updateGnssVel() in gps_control.cpp, optical_flow_fusion.cpp,
+ * baro_height_control.cpp). Without the equivalent correction here, a nonzero
+ * EKF2_IMU_POS_X/Y and a real yaw rate during an in-place pivot produce a
+ * genuine IMU-frame lateral velocity of omega x imu_pos_body that is nonzero
+ * even though the vehicle isn't translating -- and the fixed zero-side-slip
+ * constraint two lines below then fights that real term on every fusion
+ * cycle for the whole pivot, biasing the velocity (and, through
+ * velocity-position cross-covariance, the position) state. Confirmed against
+ * field logs: the resulting position walk traces a circle of radius
+ * ~= EKF2_IMU_POS_X as heading sweeps, not a random drift, and collapses when
+ * EKF2_WENC_CTRL=0 or EKF2_IMU_POS_X=0.
+ *
  * This is a secondary aid: it is only fused while another source is already
  * providing horizontal aiding (isHorizontalAidingActive()), so wheel encoders
  * never initialise the horizontal solution on their own.
@@ -66,8 +83,21 @@ void Ekf::controlWheelEncoderFusion(const imuSample &imu_sample)
 
 			// Secondary aid only: require an existing horizontal aiding source.
 			if (isHorizontalAidingActive()) {
-				// Body-frame measurement: forward speed, zero side-slip, unconstrained vertical.
-				const Vector3f measurement(sample.vel_body_fwd, 0.f, 0.f);
+
+				// Correct for the lever arm between the IMU and the wheel encoders'
+				// reference point (the body/axle origin, i.e. zero offset by
+				// convention -- same pattern as updateGnssVel() in gps_control.cpp,
+				// just with the axle taken as the zero-offset reference instead of
+				// the GNSS antenna). Entirely in body frame: unlike GNSS velocity,
+				// this measurement is fused via fuseBodyFrameVelocity() and never
+				// leaves the body frame, so no _R_to_earth rotation is needed here.
+				const Vector3f pos_offset_body = -_params.imu_pos_body;
+				const Vector3f angular_velocity = imu_sample.delta_ang / imu_sample.delta_ang_dt - _state.gyro_bias;
+				const Vector3f vel_offset_body = angular_velocity % pos_offset_body;
+
+				// Body-frame measurement: forward speed, zero side-slip, unconstrained
+				// vertical, corrected above for the IMU lever arm.
+				const Vector3f measurement = Vector3f(sample.vel_body_fwd, 0.f, 0.f) - vel_offset_body;
 
 				// Per-axis observation variance:
 				//  - body-X: reported forward-velocity variance

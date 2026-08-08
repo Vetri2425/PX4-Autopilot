@@ -234,6 +234,19 @@ int Roboclaw::readEncoder()
 	static constexpr int ENCODER_MESSAGE_SIZE = 10; // response size for ReadEncoderCounters
 	static constexpr int ENCODER_SPEED_MESSAGE_SIZE = 7; // response size for CMD_READ_SPEED_{1,2}
 
+	// Captured before any UART traffic, not after. readResponse() below can loop
+	// through multiple 11ms select() waits per transaction if bytes trickle in
+	// slowly, and this function makes three such transactions back-to-back --
+	// stamping hrt_absolute_time() at the end (as before) recorded when the last
+	// byte happened to arrive, not when the data was actually current, so a
+	// stalled/retried read got published as if it were fresh. EKF2's fusion
+	// buffer (wheelEncoderSample.time_us = this timestamp, see
+	// EKF2::UpdateWheelEncoderSample) assumes a small, consistent sensor delay
+	// for its time-alignment against the IMU timeline; the old scheme injected
+	// unbounded jitter into that alignment on every stall, worst during the
+	// transients (pivots, heading changes) where WENC fusion matters most.
+	const uint64_t measurement_time = hrt_absolute_time();
+
 	uint8_t buffer_positon[ENCODER_MESSAGE_SIZE];
 	uint8_t buffer_speed_right[ENCODER_SPEED_MESSAGE_SIZE];
 	uint8_t buffer_speed_left[ENCODER_SPEED_MESSAGE_SIZE];
@@ -262,7 +275,7 @@ int Roboclaw::readEncoder()
 	wheel_encoders.wheel_speed[1] = static_cast<float>(speed_left) / _param_rbclw_counts_rev.get() * M_TWOPI_F;
 	wheel_encoders.wheel_angle[0] = static_cast<float>(position_right) / _param_rbclw_counts_rev.get() * M_TWOPI_F;
 	wheel_encoders.wheel_angle[1] = static_cast<float>(position_left) / _param_rbclw_counts_rev.get() * M_TWOPI_F;
-	wheel_encoders.timestamp = hrt_absolute_time();
+	wheel_encoders.timestamp = measurement_time;
 	_wheel_encoders_pub.publish(wheel_encoders);
 
 	return OK;

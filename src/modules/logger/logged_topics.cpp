@@ -185,9 +185,16 @@ void LoggedTopics::add_default_topics()
 
 	// wheel-encoder body-frame velocity fusion debug (ground rover):
 	// raw encoder speeds + EKF2 aid-source innovation/test-ratio/fused/rejected.
-	// add_optional_* so non-rover builds (topics absent) are unaffected.
-	add_optional_topic("wheel_encoders", 50);
-	add_optional_topic_multi("estimator_aid_src_wheel_encoder", 50);
+	// add_topic (not add_optional_topic): the optional form checks orb_exists()
+	// at logger-init time, but these topics only advertise on first WENC fuse,
+	// which needs GPS lock -- on a cold boot without prior lock the logger has
+	// already decided to skip them before that ever happens, and they silently
+	// never log for the rest of the boot. The non-optional form subscribes by
+	// ORB_ID unconditionally and starts logging whenever the topic is first
+	// published, regardless of when that happens after boot. Non-rover builds
+	// still don't advertise these topics at all, so nothing logs there either.
+	add_topic("wheel_encoders", 50);
+	add_topic_multi("estimator_aid_src_wheel_encoder", 50);
 
 	// log all raw sensors at minimal rate (at least 1 Hz)
 	add_topic_multi("battery_status", 200, 2);

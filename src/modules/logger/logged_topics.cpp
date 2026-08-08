@@ -190,11 +190,22 @@ void LoggedTopics::add_default_topics()
 	// which needs GPS lock -- on a cold boot without prior lock the logger has
 	// already decided to skip them before that ever happens, and they silently
 	// never log for the rest of the boot. The non-optional form subscribes by
-	// ORB_ID unconditionally and starts logging whenever the topic is first
-	// published, regardless of when that happens after boot. Non-rover builds
-	// still don't advertise these topics at all, so nothing logs there either.
+	// ORB_ID unconditionally; Logger::copy_if_updated() then retries subscribe()
+	// every TRY_SUBSCRIBE_INTERVAL and emits the AddLogged record mid-file the
+	// moment the topic first advertises. Non-rover builds never advertise these
+	// topics, so a slot is reserved but nothing is ever logged there.
+	//
+	// The instance count is pinned rather than left at the add_topic_multi()
+	// default (ORB_MULTI_MAX_INSTANCES, 10 here): the optional form skipped
+	// non-existent instances, the non-optional form does not, so the default
+	// would reserve seven slots that can never carry data.
+	//
+	// Note: the generic "estimator*" sweep above already recorded this topic in
+	// excluded_optional_topic_ids on a cold boot, so the log header lists it
+	// under excluded_optional_topics even though it is logged here. That field
+	// is informational; nothing in the decoder acts on it.
 	add_topic("wheel_encoders", 50);
-	add_topic_multi("estimator_aid_src_wheel_encoder", 50);
+	add_topic_multi("estimator_aid_src_wheel_encoder", 50, 3);
 
 	// log all raw sensors at minimal rate (at least 1 Hz)
 	add_topic_multi("battery_status", 200, 2);

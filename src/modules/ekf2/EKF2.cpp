@@ -105,6 +105,10 @@ EKF2::EKF2(bool multi_mode, const px4::wq_config_t &config, bool replay_mode):
 	_param_ekf2_req_hdrift(_params->req_hdrift),
 	_param_ekf2_req_vdrift(_params->req_vdrift),
 	_param_ekf2_gsf_tas_default(_params->EKFGSF_tas_default),
+# if defined(CONFIG_EKF2_GNSS_YAW)
+	_param_ekf2_gps_yaw_n(_params->gnss_heading_noise),
+	_param_ekf2_gps_yaw_g(_params->gnss_heading_innov_floor),
+# endif // CONFIG_EKF2_GNSS_YAW
 #endif // CONFIG_EKF2_GNSS
 #if defined(CONFIG_EKF2_BAROMETER)
 	_param_ekf2_baro_ctrl(_params->baro_ctrl),
@@ -879,6 +883,40 @@ void EKF2::VerifyParams()
 	}
 
 #endif // CONFIG_EKF2_MAGNETOMETER
+
+#if defined(CONFIG_EKF2_GNSS_YAW)
+
+	// EKF2_GPS_YAW_N lowered without EKF2_GPS_YAW_G: this is exactly the F2 v1
+	// (45f576bd) failure mode - trusting the receiver more also narrows the
+	// outlier gate, which rejected valid headings during turns and locked
+	// heading fusion out until the aiding timeout. One-shot per episode: the
+	// latch clears when the operator fixes the combination, so a later
+	// regression warns again.
+	{
+		const bool yaw_n_risky = (_param_ekf2_gps_yaw_n.get() < 0.05f) && (_param_ekf2_gps_yaw_g.get() <= 0.f);
+
+		if (yaw_n_risky && !_gps_yaw_n_low_warned) {
+
+			mavlink_log_critical(&_mavlink_log_pub,
+					      "EKF2_GPS_YAW_N low without EKF2_GPS_YAW_G floor - may reject valid headings");
+			/* EVENT
+			 * @description <param>EKF2_GPS_YAW_N</param> is {1:.3}, below the recommended 0.05 rad
+			 * floor, while <param>EKF2_GPS_YAW_G</param> is disabled (0). Lowering the GNSS heading
+			 * noise narrows the innovation gate together with the Kalman gain, which can reject
+			 * valid heading updates during turns. Set EKF2_GPS_YAW_G to decouple the two.
+			 */
+			events::send<float>(events::ID("ekf2_gps_yaw_n_low_no_floor"), events::Log::Warning,
+					     "EKF2_GPS_YAW_N low without EKF2_GPS_YAW_G floor - may reject valid headings",
+					     _param_ekf2_gps_yaw_n.get());
+
+			_gps_yaw_n_low_warned = true;
+
+		} else if (!yaw_n_risky) {
+			_gps_yaw_n_low_warned = false;
+		}
+	}
+
+#endif // CONFIG_EKF2_GNSS_YAW
 
 	float delay_max = _param_ekf2_delay_max.get();
 

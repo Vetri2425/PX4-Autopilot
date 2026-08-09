@@ -47,7 +47,7 @@
 
 void Ekf::controlGnssYawFusion(const gnssSample &gnss_sample)
 {
-	if (!(_params.ekf2_gps_ctrl & static_cast<int32_t>(GnssCtrl::YAW))
+	if (!(_params.gnss_ctrl & static_cast<int32_t>(GnssCtrl::YAW))
 	    || _control_status.flags.gnss_yaw_fault) {
 
 		stopGnssYawFusion();
@@ -66,7 +66,7 @@ void Ekf::controlGnssYawFusion(const gnssSample &gnss_sample)
 				2 * GNSS_YAW_MAX_INTERVAL);
 
 		const bool starting_conditions_passing = continuing_conditions_passing
-				&& _gnss_checks.passed()
+				&& _gps_checks_passed
 				&& !is_gnss_yaw_data_intermittent
 				&& !_gps_intermittent;
 
@@ -151,7 +151,22 @@ void Ekf::updateGnssYaw(const gnssSample &gnss_sample)
 			      R_YAW,                                       // observation variance
 			      wrap_pi(heading_pred - measured_hdg),        // innovation
 			      heading_innov_var,                           // innovation variance
-			      math::max(_params.ekf2_hdg_gate, 1.f)); // innovation gate
+			      math::max(_params.heading_innov_gate, 1.f)); // innovation gate
+
+	// F2-v2: absolute innovation floor. The normalised test is
+	// EKF2_HDG_GATE * sqrt(P + R), so lowering R to trust an accurate receiver
+	// also shrinks the outlier window - and the filter's own confidence rises
+	// as good readings get discarded, tightening the window further, which is
+	// what made F2 v1 (45f576bd) lock out heading fusion for up to 7s during
+	// pivots. This floor decouples them: R still sets the Kalman gain,
+	// EKF2_GPS_YAW_G sets the largest innovation still plausible in absolute
+	// degrees. It can only ACCEPT an update the gate rejected, never the
+	// reverse, and never touches the gain or the covariance update.
+	if (_params.gnss_heading_innov_floor > 0.f
+	    && _aid_src_gnss_yaw.innovation_rejected
+	    && fabsf(_aid_src_gnss_yaw.innovation) < _params.gnss_heading_innov_floor) {
+		_aid_src_gnss_yaw.innovation_rejected = false;
+	}
 }
 
 void Ekf::fuseGnssYaw(float antenna_yaw_offset)
@@ -159,6 +174,7 @@ void Ekf::fuseGnssYaw(float antenna_yaw_offset)
 	auto &aid_src = _aid_src_gnss_yaw;
 
 	if (aid_src.innovation_rejected) {
+		_innov_check_fail_status.flags.reject_yaw = true;
 		return;
 	}
 
@@ -188,6 +204,7 @@ void Ekf::fuseGnssYaw(float antenna_yaw_offset)
 	}
 
 	_fault_status.flags.bad_hdg = false;
+	_innov_check_fail_status.flags.reject_yaw = false;
 
 	if ((fabsf(aid_src.test_ratio_filtered) > 0.2f)
 	    && !_control_status.flags.in_air && isTimedOut(aid_src.time_last_fuse, (uint64_t)1e6)

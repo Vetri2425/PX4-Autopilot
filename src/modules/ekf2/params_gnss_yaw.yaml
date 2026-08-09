@@ -1,0 +1,46 @@
+module_name: ekf2
+parameters:
+- group: EKF2
+  definitions:
+    EKF2_GPS_YAW_N:
+      description:
+        short: Measurement noise for GNSS heading fusion
+        long: |
+          Standard deviation of the dual-antenna GNSS heading measurement.
+          Acts as a FLOOR under the accuracy reported by the receiver: fusion
+          uses max(reported_accuracy, this), so a value above the receiver's
+          real accuracy discards it. A UM982 RTK baseline reports roughly
+          0.8-1.1 deg (0.014-0.019 rad), so values above ~0.02 rad mean the
+          receiver's own number is never used.
+          Lowering this ALSO shrinks the innovation rejection window, because
+          that window is EKF2_HDG_GATE * sqrt(P + R). Below about 0.05 rad,
+          set EKF2_GPS_YAW_G as well or heading fusion will be rejected during
+          turns. See the EKF2_GPS_YAW_G description.
+      type: float
+      default: 0.1
+      min: 0.001
+      max: 1.0
+      unit: rad
+      decimal: 4
+    EKF2_GPS_YAW_G:
+      description:
+        short: Absolute innovation floor for GNSS heading fusion
+        long: |
+          A GNSS heading update whose innovation magnitude is below this is
+          accepted even when the normalised EKF2_HDG_GATE test rejects it.
+          This exists so EKF2_GPS_YAW_N can be lowered for accuracy without
+          also shrinking outlier rejection. The normalised gate scales with
+          sqrt(P + R), so it collapses as the filter is told to trust GNSS
+          heading more - which starves the filter of the very corrections it
+          needs and can lock heading fusion out until the aiding timeout.
+          Heading innovation during a turn is roughly yaw_rate * uncompensated
+          GNSS delay, and is measured at 3-4 deg at 20-35 deg/s on this
+          airframe. 0.175 rad (10 deg) accepts that comfortably while still
+          rejecting gross faults such as a wrong antenna order.
+          0 disables the floor and restores stock behaviour.
+      type: float
+      default: 0.0
+      min: 0.0
+      max: 0.5
+      unit: rad
+      decimal: 3

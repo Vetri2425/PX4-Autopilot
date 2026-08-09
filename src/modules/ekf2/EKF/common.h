@@ -355,6 +355,9 @@ struct parameters {
 # if defined(CONFIG_EKF2_GNSS_YAW)
 	// GNSS heading fusion
 	float gnss_heading_noise{0.1f};          ///< measurement noise standard deviation used for GNSS heading fusion (rad)
+	float gnss_heading_innov_floor{0.0f};    ///< absolute innovation magnitude (rad) below which a rejected GNSS
+	                                         ///< heading update is force-accepted regardless of the normalised
+	                                         ///< innovation gate. 0 disables this floor (stock behaviour).
 # endif // CONFIG_EKF2_GNSS_YAW
 
 	// Parameters used to control when yaw is reset to the EKF-GSF yaw estimator value

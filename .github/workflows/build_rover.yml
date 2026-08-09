@@ -75,6 +75,8 @@ jobs:
              src/modules/ekf2/CMakeLists.txt
           cp fork_patches/src/modules/ekf2/params_wheel_encoder.yaml \
              src/modules/ekf2/params_wheel_encoder.yaml
+          cp fork_patches/src/modules/ekf2/params_gnss_yaw.yaml \
+             src/modules/ekf2/params_gnss_yaw.yaml
           cp fork_patches/src/modules/ekf2/EKF2.cpp \
              src/modules/ekf2/EKF2.cpp
           cp fork_patches/src/modules/ekf2/EKF2.hpp \
@@ -93,6 +95,14 @@ jobs:
              src/modules/ekf2/EKF/estimator_interface.cpp
           cp fork_patches/src/modules/ekf2/EKF/aid_sources/wheel_encoder/wheel_encoder_fusion.cpp \
              src/modules/ekf2/EKF/aid_sources/wheel_encoder/wheel_encoder_fusion.cpp
+          # EKF2 GNSS heading fusion: v1.16.2-stock gnss_yaw_control.cpp + an
+          # additive innovation-floor override (re-anchored onto v1.16.2 per
+          # base-discipline rule - fork-main's copy is post-v1.18-alpha and
+          # references renamed fields: ekf2_gps_ctrl, ekf2_hdg_gate,
+          # _gnss_checks.passed(), none of which exist in the v1.16.2-based
+          # common.h/ekf.h this overlay keeps).
+          cp fork_patches/src/modules/ekf2/EKF/aid_sources/gnss/gnss_yaw_control.cpp \
+             src/modules/ekf2/EKF/aid_sources/gnss/gnss_yaw_control.cpp
           # Logger overlay: v1.16.2-stock logged_topics.cpp + wheel-encoder debug
           # topics (raw wheel_encoders + estimator_aid_src_wheel_encoder). Base is
           # v1.16.2 stock (NOT the fork's post-v1.18 tree) per base-discipline rule.

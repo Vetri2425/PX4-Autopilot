@@ -155,13 +155,19 @@ void Ekf::updateGnssYaw(const gnssSample &gnss_sample)
 
 	// F2-v2: absolute innovation floor. The normalised test is
 	// EKF2_HDG_GATE * sqrt(P + R), so lowering R to trust an accurate receiver
-	// also shrinks the outlier window - and the filter's own confidence rises
-	// as good readings get discarded, tightening the window further, which is
-	// what made F2 v1 (45f576bd) lock out heading fusion for up to 7s during
-	// pivots. This floor decouples them: R still sets the Kalman gain,
-	// EKF2_GPS_YAW_G sets the largest innovation still plausible in absolute
-	// degrees. It can only ACCEPT an update the gate rejected, never the
-	// reverse, and never touches the gain or the covariance update.
+	// also shrinks the outlier window - which is what made F2 v1 (45f576bd)
+	// reject valid headings during pivots and lock heading fusion out for up
+	// to 7s (measured: 17.5%/24.3% of updates rejected, rejection runs up to
+	// 7s, yaw_align cleared 3x). A P-driven self-tightening effect was also
+	// suspected but only weakly and inconsistently reproduced in replay (2 of
+	// 3 logs, inverted on the third) - don't treat filter confidence as a
+	// field diagnostic here; the gate coupling to R alone is sufficient
+	// explanation and is what this floor fixes. This floor decouples them: R
+	// still sets the Kalman gain, EKF2_GPS_YAW_G sets the largest innovation
+	// still plausible in absolute degrees. It can only ACCEPT an update the
+	// gate rejected, never the reverse (197 rescues / 0 reverse actions
+	// measured in replay), and never touches the gain or the covariance
+	// update.
 	if (_params.gnss_heading_innov_floor > 0.f
 	    && _aid_src_gnss_yaw.innovation_rejected
 	    && fabsf(_aid_src_gnss_yaw.innovation) < _params.gnss_heading_innov_floor) {

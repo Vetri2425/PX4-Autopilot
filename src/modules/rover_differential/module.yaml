@@ -95,3 +95,29 @@ parameters:
         values:
           0: Normal (throttle+yaw mixing)
           1: Tank mode (direct per-motor RC)
+
+      RD_YAW_RATE_FF:
+        description:
+          short: Yaw-rate feedforward scale for OFFBOARD trajectory setpoints
+          long: |
+            Scales trajectory_setpoint.yawspeed before it is added to the yaw
+            attitude controller's proportional output.
+
+            The yaw loop is pure P (RO_YAW_P, no I or D), so tracking a heading
+            that ramps at a constant rate leaves a following error of
+            approximately rate / RO_YAW_P. A genuine rate feedforward
+            (curvature * speed) cancels that error.
+
+            Default 0 because the field is only safe to trust when the offboard
+            source actually sends a rate feedforward. A source that instead puts
+            a heading-error feedback term in yawspeed adds a second proportional
+            gain acting on the same error the attitude controller already
+            closes, multiplying the effective heading gain. Raise this only for
+            a source known to send curvature * speed, and validate with a
+            measured A/B.
+        type: float
+        min: 0.0
+        max: 1.0
+        increment: 0.05
+        decimal: 2
+        default: 0.0

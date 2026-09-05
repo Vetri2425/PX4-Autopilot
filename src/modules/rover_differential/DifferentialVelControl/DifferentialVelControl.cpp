@@ -131,6 +131,11 @@ void DifferentialVelControl::generateVelocitySetpoint()
 
 		differential_velocity_setpoint_s differential_velocity_setpoint{};
 		differential_velocity_setpoint.timestamp = _timestamp;
+		// Companion yaw-rate feedforward (trajectory_setpoint.yawspeed) passes through
+		// regardless of which branch below picks the bearing — it's a commanded body
+		// rotation rate, not a heading representation. Whether it is actually applied is
+		// decided downstream by RD_YAW_RATE_FF (default 0); NaN contributes nothing.
+		differential_velocity_setpoint.yaw_rate_feedforward = trajectory_setpoint.yawspeed;
 
 		if (mag < ZERO_VEL_THRESHOLD) {
 			// P4: Velocity is commanded to zero — hold current heading, don't snap to North
@@ -138,6 +143,11 @@ void DifferentialVelControl::generateVelocitySetpoint()
 			differential_velocity_setpoint.bearing = _vehicle_yaw;
 		} else {
 			// P3: Project NED velocity onto body-x axis for signed speed (forward/reverse)
+			// Bearing stays velocity-derived and deliberately ignores trajectory_setpoint.yaw:
+			// the 180-degree reverse flip below is only meaningful on a direction-of-travel
+			// heading, and applying it to an explicit attitude command would spin the rover away
+			// from what was asked. Honouring an explicit yaw requires settling that convention
+			// first (and today's companions all send yaw = atan2(velocity) regardless).
 			const float bearing = atan2f(velocity_in_local_frame(1), velocity_in_local_frame(0));
 			const float fwd_component = velocity_in_local_frame(0) * cosf(_vehicle_yaw)
 						  + velocity_in_local_frame(1) * sinf(_vehicle_yaw);
@@ -164,6 +174,7 @@ void DifferentialVelControl::generateAttitudeAndThrottleSetpoint()
 	rover_attitude_setpoint_s rover_attitude_setpoint{};
 	rover_attitude_setpoint.timestamp = _timestamp;
 	rover_attitude_setpoint.yaw_setpoint = _differential_velocity_setpoint.bearing;
+	rover_attitude_setpoint.yaw_rate_feedforward = _differential_velocity_setpoint.yaw_rate_feedforward;
 	_rover_attitude_setpoint_pub.publish(rover_attitude_setpoint);
 
 	// Throttle Setpoint

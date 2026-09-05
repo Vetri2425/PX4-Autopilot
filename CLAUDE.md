@@ -8,7 +8,7 @@ Safety-critical C/C++. This file is the only preloaded context.
 - **Repo:** `Vetri2425/PX4-Autopilot`, branch `main`.
 - **Diverged from upstream at** `92fa89d7` (`ci(mavros): remove MAVROS integration test suite`, 2026-05-14). Fork tree is post-`v1.18.0-alpha1`.
 - **31 commits above baseline.** HEAD == `origin/main` == `06309e41a7` (`feat(logger): log wheel-encoder fusion debug topics on rover`).
-- **But CI builds against `v1.16.2`** — `build_rover.yml` checks out stock upstream `v1.16.2` and overlays 26 fork files. So all overlay files must be edited as `v1.16.2`-stock + minimal diff, NOT against the fork's own newer tree (base-discipline rule — see `.claude/memory/patches.md`).
+- **But CI builds against `v1.16.2`** — `build_rover.yml` checks out stock upstream `v1.16.2` and overlays 30 fork files (as of 2026-09-05, UNCOMMITTED — see below). So all overlay files must be edited as `v1.16.2`-stock + minimal diff, NOT against the fork's own newer tree (base-discipline rule — see `.claude/memory/patches.md`).
 
 ## Build — CI only
 
@@ -19,7 +19,7 @@ git push origin main                  # auto-triggers build_rover.yml
 
 `.github/workflows/build_rover.yml` (ubuntu-22.04) is the **only** build path and the
 canonical artifact to flash: checkout stock `v1.16.2` → fetch NuttX tags → checkout fork
-`main` into `fork_patches/` → overlay 26 files → `make cubepilot_cubeorangeplus_rover`.
+`main` into `fork_patches/` → overlay 30 files → `make cubepilot_cubeorangeplus_rover`.
 See `.claude/memory/build.md` for the gh-CLI push → watch → download flow.
 
 ⚠ **There is no local build script.** `Tools/local_build_rover.sh` was reverted on
@@ -32,18 +32,25 @@ local build, work in a separate clean `v1.16.2` checkout, never in this working 
 - Conventional commits, topic scope: `type(scope): description`. Use `/commit`, `/pr` skills.
 - **No Claude attribution** — no `Co-Authored-By`, no "Generated with" footer.
 
-## Patch domains (26-file overlay)
+## Patch domains (30-file overlay)
 
 | Scope | Files | Purpose |
 |-------|-------|---------|
 | `boards` | `rover.px4board` | Enables ROVER_DIFFERENTIAL, ROBOCLAW, EKF2_WHEEL_ENCODER; disables FW/MC/VTOL |
-| `rover_differential` | `RoverDifferential.{cpp,hpp}`, `module.yaml`, `DifferentialVelControl/*` | RD_TANK_MODE, IK signs, disarm guard, OFFBOARD signed-speed + hold-yaw |
+| `rover_differential` | `RoverDifferential.{cpp,hpp}`, `module.yaml`, `DifferentialVelControl/*`, `DifferentialAttControl/{cpp,hpp}` | RD_TANK_MODE, IK signs, disarm guard, OFFBOARD signed-speed + hold-yaw, `RD_YAW_RATE_FF` yaw-rate feedforward (2026-09-05, uncommitted) |
 | `roboclaw` | `Roboclaw.{cpp,hpp}`, `module.yaml` | QPPS velocity (opcodes 35/36), UART/raw/baud fixes, creep deadband |
 | `land_detector` | `RoverLandDetector.cpp` | Always-landed (coupled to mission_block) |
 | `navigator` | `mission_block.cpp` | Rover waypoint-acceptance bypass (coupled to land_detector) |
 | `ekf2` | 13 files incl. `EKF/aid_sources/wheel_encoder/` | Wheel-encoder body-frame velocity fusion (default OFF) |
+| `msg` | `RoverAttitudeSetpoint.msg`, `DifferentialVelocitySetpoint.msg` | Additive `yaw_rate_feedforward` field (2026-09-05, uncommitted); `DifferentialVelocitySetpoint.msg` re-created from v1.16.2 stock (fork-main deleted it) |
 
 ⚠ **DifferentialPosControl is NOT overlaid** — fork copy needs `RoverSpeedSetpoint.msg` absent in v1.16.2. Stock v1.16.2 PosControl is used.
+
+⚠ **DifferentialAttControl.{cpp,hpp} are v1.16.2-stock RE-ANCHORED, not fork-main's copy** — fork-main's version belongs to the post-`v1.16.2` `DifferentialDriveModes` mode-dispatch refactor (depends on `DifferentialOffboardMode`, `DifferentialAutoMode`, `DifferentialManualMode`, none ever overlaid, none built). See `.claude/memory/patches.md` "Yaw-rate feedforward" entry.
+
+⛔ **`RD_YAW_RATE_FF` must stay 0 on the `segment` tracking profile.** The Jetson companion does not send a rate feedforward there — `rpp_controller_node.py` sets `yaw_rate_body = segment_yaw_rate_gain · θ_e` (gain **1.5**), a proportional heading-error *feedback* on the same error `RO_YAW_P` (**1.5**) already closes. Applying it sums two P gains into `3.0 · θ_e`, doubling the heading-loop gain on a loop already documented at near-zero phase margin. Only the `smooth`/arc profile sends a true `κ·v` feedforward (`yaw_rate_feedback_gain` defaults 0 there), so that is the only profile where raising `RD_YAW_RATE_FF` is meaningful — and it needs a measured A/B.
+
+⚠ **`trajectory_setpoint.yaw` is deliberately ignored on the velocity path.** Bearing stays `atan2(vy,vx)`. The reverse 180° flip in `DifferentialVelControl` is only valid on a direction-of-travel heading; applying it to an explicit attitude command spins the rover 180° away from the request. Every current companion publisher sends `yaw = atan2(velocity)` anyway (`twist_to_setpoint_node.py`, `spin_in_place_test.py`), so honouring it would be a no-op today and a trap tomorrow.
 
 ## Repo state (2026-08-05 cleanup)
 

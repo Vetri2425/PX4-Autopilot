@@ -46,6 +46,32 @@ jobs:
              src/modules/rover_differential/DifferentialVelControl/DifferentialVelControl.hpp
           cp fork_patches/src/modules/rover_differential/DifferentialVelControl/CMakeLists.txt \
              src/modules/rover_differential/DifferentialVelControl/CMakeLists.txt
+          # Rover yaw-rate feedforward (2026-09-05): velocity-mode OFFBOARD discarded
+          # trajectory_setpoint.yawspeed, so DifferentialAttControl's pure-P yaw loop had
+          # no feedforward input at all (documented structural floor: following err
+          # ~= omega/RO_YAW_P). This plumbs yawspeed through VelControl -> AttControl,
+          # gated by the new RD_YAW_RATE_FF (default 0 => flashing is behaviour-neutral).
+          # The gate is NOT optional caution: the Jetson companion sends a heading-error
+          # feedback term (segment_yaw_rate_gain * theta_e, gain 1.5) in yawspeed on the
+          # production segment profile, and RO_YAW_P is also 1.5 on the same error, so an
+          # ungated sum would double the heading-loop gain. Only the smooth/arc profile
+          # sends a true curvature*speed feedforward. Bearing deliberately stays
+          # atan2(vy,vx): trajectory_setpoint.yaw is not honoured because the reverse
+          # 180-degree flip is only valid on a direction-of-travel heading.
+          # DifferentialAttControl.{cpp,hpp} here are v1.16.2-stock RE-ANCHORED per
+          # base-discipline rule: fork-main's copy is a post-v1.16.2 mode-dispatch
+          # refactor (DifferentialDriveModes/DifferentialOffboardMode) that has never
+          # been on this overlay list and is not what's built. Same for
+          # DifferentialVelocitySetpoint.msg, which that refactor deleted outright but
+          # which the actual v1.16.2 base still uses.
+          cp fork_patches/msg/RoverAttitudeSetpoint.msg \
+             msg/RoverAttitudeSetpoint.msg
+          cp fork_patches/msg/DifferentialVelocitySetpoint.msg \
+             msg/DifferentialVelocitySetpoint.msg
+          cp fork_patches/src/modules/rover_differential/DifferentialAttControl/DifferentialAttControl.cpp \
+             src/modules/rover_differential/DifferentialAttControl/DifferentialAttControl.cpp
+          cp fork_patches/src/modules/rover_differential/DifferentialAttControl/DifferentialAttControl.hpp \
+             src/modules/rover_differential/DifferentialAttControl/DifferentialAttControl.hpp
           # NOTE: DifferentialPosControl is intentionally NOT overlaid.
           # The fork's PosControl is from a post-v1.16.2 refactor that requires
           # RoverSpeedSetpoint.msg / RoverSpeedStatus.msg, which do not exist in
